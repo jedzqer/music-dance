@@ -109,6 +109,14 @@ const canvas = document.getElementById('canvas');
             }
         }
 
+        function addGaussianGlowStops(gradient, r, g, b, alpha) {
+            for (let i = 0; i <= 12; i++) {
+                const p = i / 12;
+                const a = alpha * Math.exp(-p * p * 4.2);
+                gradient.addColorStop(p, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`);
+            }
+        }
+
         function renderLyrics() {
             lyricsContent.innerHTML = '';
             if (!parsedLyrics) {
@@ -413,9 +421,7 @@ const canvas = document.getElementById('canvas');
             const baseTrail = 0.1 - climaxLevel * 0.03;
             const bgHue = 218 - climaxLevel * 120 + Math.sin(t * 0.08) * 18;
             const bgPulse = 0.5 + Math.sin(t * 0.32) * 0.5;
-            const [bgR, bgG, bgB] = coverPalette
-                ? colorWithLightness(coverPalette.colors[0], 6 + bgPulse * 3 + globalIntensity * 5, 1.12)
-                : hslToRgb(Math.max(0, bgHue), 76, 7 + bgPulse * 3 + globalIntensity * 5);
+            const [bgR, bgG, bgB] = hslToRgb(Math.max(0, bgHue), 76, 7 + bgPulse * 3 + globalIntensity * 5);
             ctx.fillStyle = `rgba(${Math.round(bgR)},${Math.round(bgG)},${Math.round(bgB)},${Math.max(0.045, baseTrail)})`;
             ctx.fillRect(0, 0, W, H);
 
@@ -423,24 +429,21 @@ const canvas = document.getElementById('canvas');
             const driftX = cx + Math.sin(t * 0.13) * W * 0.2;
             const driftY = cy + Math.cos(t * 0.11) * H * 0.18;
             const [haloR, haloG, haloB] = coverPalette
-                ? colorWithLightness(coverPalette.colors[1], 46 + globalIntensity * 18, 1.25)
+                ? colorWithLightness(coverPalette.colors[0], 46 + globalIntensity * 18, 1.25)
                 : hslToRgb(Math.max(0, bgHue - 18), 88, 48 + globalIntensity * 16);
             const ambientGlow = ctx.createRadialGradient(driftX, driftY, 0, driftX, driftY, Math.max(W, H) * 0.68);
-            ambientGlow.addColorStop(0, `rgba(${Math.round(haloR)},${Math.round(haloG)},${Math.round(haloB)},${ambientAlpha})`);
-            ambientGlow.addColorStop(0.45, `rgba(${Math.round(haloR)},${Math.round(haloG)},${Math.round(haloB)},${ambientAlpha * 0.28})`);
-            ambientGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            addGaussianGlowStops(ambientGlow, haloR, haloG, haloB, ambientAlpha);
             ctx.fillStyle = ambientGlow;
             ctx.fillRect(0, 0, W, H);
 
             const accentX = cx + Math.cos(t * 0.17 + 1.6) * W * 0.34;
             const accentY = cy + Math.sin(t * 0.15 + 0.7) * H * 0.26;
             const [ar, ag, ab] = coverPalette
-                ? colorWithLightness(coverPalette.colors[2], 50 + bassPulse * 20, 1.28)
+                ? colorWithLightness(coverPalette.colors[1], 50 + bassPulse * 20, 1.28)
                 : hslToRgb(330 - climaxLevel * 120 + Math.sin(t * 0.1) * 28, 88, 54 + bassPulse * 18);
             const accentGlow = ctx.createRadialGradient(accentX, accentY, 0, accentX, accentY, Math.max(W, H) * 0.48);
-            accentGlow.addColorStop(0, `rgba(${Math.round(ar)},${Math.round(ag)},${Math.round(ab)},${0.055 + bassPulse * 0.12 + climaxLevel * 0.07})`);
-            accentGlow.addColorStop(0.52, `rgba(${Math.round(ar)},${Math.round(ag)},${Math.round(ab)},${0.018 + globalIntensity * 0.035})`);
-            accentGlow.addColorStop(1, 'rgba(0,0,0,0)');
+            const accentAlpha = 0.055 + bassPulse * 0.12 + climaxLevel * 0.07;
+            addGaussianGlowStops(accentGlow, ar, ag, ab, accentAlpha);
             ctx.fillStyle = accentGlow;
             ctx.fillRect(0, 0, W, H);
 

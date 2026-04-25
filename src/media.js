@@ -117,7 +117,7 @@ async function imageUrlToPalette(url) {
         const g = pixels[i + 1];
         const b = pixels[i + 2];
         const [, s, l] = rgbToHsl(r, g, b);
-        if (l < 8 || l > 92 || s < 12) continue;
+        if (l < 8) continue;
         const key = `${r >> 4},${g >> 4},${b >> 4}`;
         const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, count: 0, score: 0 };
         const weight = 1 + s / 55 + (100 - Math.abs(l - 55)) / 100;
@@ -148,14 +148,13 @@ async function imageUrlToPalette(url) {
             return Math.abs(((h - eh + 540) % 360) - 180) > 28;
         });
         if (isDistinct) palette.push(color);
-        if (palette.length >= 3) break;
+        if (palette.length >= 2) break;
     }
-    while (palette.length < 3) {
+    while (palette.length < 2) {
         const source = palette[0] || colors[0];
         const [h, s, l] = rgbToHsl(source.r, source.g, source.b);
-        const hueOffset = palette.length === 1 ? 42 : 180;
-        const [r, g, b] = hslToRgb((h + hueOffset) % 360, clamp(s + 18, 48, 96), clamp(l + palette.length * 10, 42, 72));
+        const [r, g, b] = hslToRgb((h + 180) % 360, clamp(s + 18, 48, 96), clamp(l + 10, 42, 72));
         palette.push({ r, g, b, score: source.score * 0.75 });
     }
-    return { colors: palette.slice(0, 3) };
+    return { colors: palette.slice(0, 2) };
 }
