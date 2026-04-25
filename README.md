@@ -13,34 +13,44 @@
 
 ## 运行方法
 
-先安装依赖：
-
 ```bash
 npm install
+npm run dev
 ```
 
-启动本地服务：
+构建生产版本：
 
 ```bash
-npm start
+npm run build
+npm run preview
 ```
 
-然后根据终端输出的地址在浏览器中打开页面。
+## 技术栈
+
+- **构建工具**: Vite
+- **音频分析**: Web Audio API
+- **可视化**: Canvas 2D
+- **元数据解析**: jsmediatags (npm)
 
 ## 文件结构
 
 ```text
 .
-├── index.html          # 页面入口
-├── package.json        # npm 脚本与开发依赖
+├── index.html            # 页面入口
+├── package.json          # npm 脚本与开发依赖
+├── vite.config.js        # Vite 构建配置
 ├── styles/
-│   └── main.css        # 页面样式与布局
+│   └── main.css          # 页面样式与布局
 ├── src/
-│   ├── app.js          # 应用主逻辑、播放控制与可视化渲染
-│   ├── lyrics.js       # 内嵌歌词读取与解析
-│   ├── media.js        # 专辑封面读取与主题色提取
-│   ├── riff.js         # RIFF/WAV 数据块读取
-│   └── utils.js        # 通用工具函数
-└── 开发计划.md         # 开发记录与计划
+│   ├── app.js            # 入口：动画循环与 Canvas 尺寸
+│   ├── controls.js       # 播放控制、进度条、文件加载、歌词、封面
+│   ├── renderer.js       # Canvas 可视化渲染
+│   ├── beatdetector.js   # 节拍检测与冲击波效果
+│   ├── particles.js      # 粒子系统
+│   ├── lyrics.js         # 内嵌歌词读取与解析
+│   ├── media.js          # 专辑封面读取与主题色提取
+│   ├── riff.js           # RIFF/WAV 数据块读取
+│   └── utils.js          # 通用工具函数
+└── dist/                 # 构建输出目录
 ```
 

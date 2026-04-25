@@ -1,8 +1,14 @@
 {
+  "type": "module",
   "scripts": {
-    "start": "npx http-server . -c-1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite"
   },
   "devDependencies": {
-    "http-server": "latest"
+    "http-server": "latest",
+    "vite": "^6.4.1",
+    "jsmediatags": "^3.9.7"
   }
 }

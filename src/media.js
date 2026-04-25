@@ -1,3 +1,4 @@
+import jsmediatags from 'jsmediatags';
 import { clamp, hslToRgb, rgbToHsl } from './utils.js';
 import { extractRiffChunk } from './riff.js';
 
@@ -17,7 +18,7 @@ export async function readEmbeddedPicture(file) {
 async function readPictureFromTags(file) {
     return new Promise((resolve) => {
         try {
-            window.jsmediatags.read(file, {
+            jsmediatags.read(file, {
                 onSuccess: (tag) => resolve(tag.tags?.picture || null),
                 onError: () => resolve(null)
             });

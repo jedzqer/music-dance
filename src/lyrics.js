@@ -1,3 +1,4 @@
+import jsmediatags from 'jsmediatags';
 import { extractRiffChunk } from './riff.js';
 
 export function parseLyrics(raw) {
@@ -46,7 +47,7 @@ export async function readEmbeddedLyrics(file) {
 function readLyricsFromTags(file) {
     return new Promise((resolve) => {
         try {
-            window.jsmediatags.read(file, {
+            jsmediatags.read(file, {
                 onSuccess: (tag) => {
                     let raw = null;
                     if (tag.tags && tag.tags.lyrics) {
