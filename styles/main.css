@@ -1,0 +1,275 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; overflow: hidden; background: #050510; }
+
+        :root {
+            --rail-height: min(540px, 78vh);
+            --rail-controls-space: 178px;
+        }
+
+        canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        /* ─── Overlay ─── */
+        .overlay {
+            position: fixed; inset: 0; z-index: 30;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(5, 5, 16, 0.75);
+            backdrop-filter: blur(16px);
+            transition: opacity 0.6s, visibility 0.6s;
+        }
+        .overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+        .upload-panel {
+            text-align: center; color: #fff;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        .upload-panel h1 {
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 200; letter-spacing: 0.12em; margin-bottom: 0.3rem;
+            background: linear-gradient(135deg, #4facfe, #00f2fe, #1d976c, #fa709a);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .upload-panel .subtitle {
+            font-size: 0.95rem; color: rgba(255,255,255,0.45); margin-bottom: 2.5rem; letter-spacing: 0.05em;
+        }
+        .upload-btn {
+            display: inline-block; padding: 14px 52px;
+            border: 1.5px solid rgba(255,255,255,0.25); border-radius: 60px;
+            font-size: 1.05rem; color: rgba(255,255,255,0.9); cursor: pointer;
+            transition: all 0.35s; background: rgba(255,255,255,0.04); letter-spacing: 0.06em;
+        }
+        .upload-btn:hover {
+            border-color: rgba(79, 172, 254, 0.7); background: rgba(79, 172, 254, 0.08);
+            box-shadow: 0 0 40px rgba(79, 172, 254, 0.25), inset 0 0 20px rgba(79, 172, 254, 0.05);
+            transform: translateY(-3px);
+        }
+        .upload-btn:active { transform: translateY(0); }
+        #file-input { display: none; }
+        .drop-hint {
+            margin-top: 1.2rem; font-size: 0.75rem; color: rgba(255,255,255,0.25);
+        }
+
+        /* ─── Left Player Rail ─── */
+        .controls {
+            position: fixed; left: 12px; top: 50%; width: 52px; height: var(--rail-height);
+            z-index: 21; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 13px;
+            background: rgba(10, 10, 25, 0.62); backdrop-filter: blur(24px);
+            padding: 12px 7px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 16px 50px rgba(0,0,0,0.28), inset 0 0 28px rgba(79,172,254,0.04);
+            opacity: 0; transition: opacity 0.4s, transform 0.4s; pointer-events: none;
+            transform: translate(-8px, -50%);
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        .controls.visible { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+        .controls button {
+            background: none; border: none; color: #fff; font-size: 1.3rem;
+            cursor: pointer; width: 38px; height: 38px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+        }
+        .controls button:hover { background: rgba(255,255,255,0.1); }
+        .vol-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+        .vol-icon { color: rgba(255,255,255,0.5); font-size: 0.8rem; }
+        #volume-slider {
+            -webkit-appearance: slider-vertical; appearance: slider-vertical; width: 24px; height: 78px;
+            border-radius: 2px; background: rgba(255,255,255,0.15); outline: none; cursor: pointer;
+            writing-mode: vertical-lr; direction: rtl;
+        }
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #fff; cursor: pointer;
+        }
+
+        /* ─── Left Progress Bar ─── */
+        .progress-container {
+            position: fixed; left: 35px;
+            top: calc(50% - var(--rail-height) / 2 + 14px);
+            width: 6px; height: calc(var(--rail-height) - var(--rail-controls-space));
+            z-index: 22; cursor: pointer;
+        }
+        .progress-track {
+            position: absolute; inset: 0;
+            background: rgba(255,255,255,0.04); border-radius: 4px;
+        }
+        .progress-fill {
+            position: absolute; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to top, #4facfe, #00f2fe, #fa709a);
+            border-radius: 4px;
+            transition: height 0.08s linear;
+            box-shadow: 0 0 8px rgba(79,172,254,0.5);
+        }
+        .progress-thumb {
+            position: absolute; left: 50%; transform: translate(-50%, 50%);
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 0 16px rgba(255,255,255,0.7);
+            opacity: 0; transition: opacity 0.2s;
+            pointer-events: none;
+        }
+        .progress-container:hover .progress-thumb { opacity: 0.85; }
+        .progress-container:hover { width: 8px; left: 34px; }
+        .progress-time-tip {
+            position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
+            color: rgba(255,255,255,0); font-size: 0.7rem; white-space: nowrap;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            transition: color 0.2s; pointer-events: none;
+        }
+        .progress-container:hover .progress-time-tip { color: rgba(255,255,255,0.7); }
+
+        /* ─── Settings ─── */
+        .settings {
+            position: fixed; right: 18px; top: 18px; z-index: 35;
+            opacity: 0; transform: translateY(-6px); pointer-events: none;
+            transition: opacity 0.25s, transform 0.25s;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        body.mouse-active .settings, .settings.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+        .settings-toggle {
+            width: 34px; height: 34px; border: 1px solid rgba(255,255,255,0.12); border-radius: 50%;
+            color: rgba(255,255,255,0.82); background: rgba(8,8,24,0.48); backdrop-filter: blur(18px);
+            cursor: pointer; font-size: 1rem; line-height: 1;
+            box-shadow: 0 12px 34px rgba(0,0,0,0.28);
+        }
+        .settings-toggle:hover { background: rgba(255,255,255,0.08); }
+        .settings-panel {
+            position: absolute; right: 0; top: 42px; width: 132px;
+            display: none; padding: 8px; border-radius: 14px;
+            background: rgba(8,8,24,0.72); backdrop-filter: blur(22px);
+            border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 18px 50px rgba(0,0,0,0.34);
+        }
+        .settings.open .settings-panel { display: grid; gap: 6px; }
+        .layout-option {
+            border: 0; border-radius: 10px; padding: 8px 10px;
+            color: rgba(255,255,255,0.68); background: transparent; cursor: pointer;
+            text-align: left; font-size: 0.82rem;
+        }
+        .layout-option:hover, .layout-option.active { color: #fff; background: rgba(255,255,255,0.09); }
+
+        .cover-art {
+            position: fixed; left: 18px; top: 18px; z-index: 20;
+            width: min(168px, 26vw); aspect-ratio: 1;
+            border-radius: 22px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: linear-gradient(135deg, rgba(79,172,254,0.22), rgba(250,112,154,0.18));
+            box-shadow: 0 22px 70px rgba(0,0,0,0.34);
+            opacity: 0; transform: translateY(-8px); pointer-events: none;
+            transition: opacity 0.35s, transform 0.35s;
+        }
+        .cover-art img { width: 100%; height: 100%; object-fit: cover; display: none; }
+        .cover-art.has-cover img { display: block; }
+        .cover-art::after {
+            content: '♫'; position: absolute; inset: 0; display: grid; place-items: center;
+            color: rgba(255,255,255,0.42); font-size: 2rem;
+        }
+        .cover-art.has-cover::after { display: none; }
+
+        /* ─── Right Lyrics Panel ─── */
+        .lyrics-panel {
+            position: fixed; right: 16px; top: 50%; transform: translateY(-50%);
+            width: min(300px, 32vw); max-height: 72vh; z-index: 20;
+            background: rgba(8, 8, 26, 0.55); backdrop-filter: blur(24px);
+            border-radius: 18px; border: 1px solid rgba(255,255,255,0.06);
+            padding: 18px 14px; overflow-y: auto; overflow-x: hidden;
+            opacity: 0; transition: opacity 0.5s;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .lyrics-panel.visible { opacity: 1; }
+        .lyrics-panel::-webkit-scrollbar { width: 2px; }
+        .lyrics-panel::-webkit-scrollbar-track { background: transparent; }
+        .lyrics-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+        .lyrics-header {
+            text-align: center; margin-bottom: 14px; padding-bottom: 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .lyrics-panel h3 {
+            color: rgba(255,255,255,0.5); font-size: 0.75rem; font-weight: 400;
+            letter-spacing: 0.16em; margin-bottom: 7px;
+        }
+        .track-name {
+            display: block; color: rgba(255,255,255,0.84); font-size: 0.92rem; line-height: 1.45;
+            overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            text-shadow: 0 0 16px rgba(79,172,254,0.22);
+        }
+        .lyrics-line {
+            padding: 5px 10px; border-radius: 6px;
+            color: rgba(255,255,255,0.28); font-size: 0.85rem;
+            line-height: 1.7; transition: all 0.35s; cursor: default;
+        }
+        .lyrics-line.active {
+            color: #fff; background: rgba(255,255,255,0.06);
+            font-size: 0.95rem; font-weight: 500;
+            text-shadow: 0 0 12px rgba(255,255,255,0.25);
+        }
+        .lyrics-empty {
+            color: rgba(255,255,255,0.15); font-size: 0.78rem; text-align: center;
+            padding: 30px 0;
+        }
+
+        body.layout-two .controls {
+            left: 22px; top: auto; bottom: 22px; width: min(440px, calc(100vw - 44px)); height: 72px;
+            flex-direction: row; justify-content: center; gap: 18px;
+            padding: 22px 16px 8px; border-radius: 24px;
+            transform: translate(-8px, 8px);
+        }
+        body.layout-two .controls.visible { transform: translate(0, 0); }
+        body.layout-two .vol-wrap { flex-direction: row; gap: 10px; }
+        body.layout-two #volume-slider {
+            -webkit-appearance: auto; appearance: auto; width: 96px; height: 24px;
+            writing-mode: horizontal-tb; direction: ltr;
+        }
+        body.layout-two .progress-container {
+            left: 38px; top: auto; bottom: 78px;
+            width: min(408px, calc(100vw - 76px)); height: 6px;
+        }
+        body.layout-two .progress-fill {
+            left: 0; right: auto; top: 0; bottom: 0; width: 0; height: auto;
+            background: linear-gradient(to right, #4facfe, #00f2fe, #fa709a);
+        }
+        body.layout-two .progress-thumb {
+            left: 0; bottom: auto; top: 50%; transform: translate(-50%, -50%);
+        }
+        body.layout-two .progress-container:hover { width: min(408px, calc(100vw - 76px)); left: 38px; height: 8px; bottom: 77px; }
+        body.layout-two .progress-time-tip { left: 50%; top: -24px; transform: translateX(-50%); }
+        body.layout-two .lyrics-panel {
+            right: 22px; top: auto; bottom: 26px; transform: none;
+            width: min(420px, calc(100vw - 44px)); max-height: none;
+            overflow: hidden; padding: 0; text-align: right;
+            background: transparent; backdrop-filter: none;
+            border: 0;
+        }
+        body.layout-two .lyrics-header {
+            position: fixed; right: 70px; top: 22px;
+            width: min(380px, calc(100vw - 140px));
+            text-align: right; margin-bottom: 0; padding-bottom: 0; border-bottom: 0;
+        }
+        body.layout-two .lyrics-panel h3 { display: none; }
+        body.layout-two .track-name { font-size: 0.9rem; color: rgba(255,255,255,0.58); }
+        body.layout-two .lyrics-line { display: none; padding: 0; background: transparent; }
+        body.layout-two .lyrics-line.active, body.layout-two .lyrics-line:first-child:last-child {
+            display: block; color: #fff; font-size: clamp(1.1rem, 2.2vw, 1.65rem); line-height: 1.35;
+            text-shadow: 0 0 18px rgba(255,255,255,0.26);
+        }
+        body.layout-two .lyrics-empty { padding: 0; text-align: right; }
+        body.layout-two .cover-art { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 700px) {
+            body.layout-two .cover-art { width: 96px; border-radius: 16px; }
+            body.layout-two .lyrics-panel { bottom: 96px; }
+            body.layout-two .lyrics-header { right: 62px; top: 22px; width: calc(100vw - 172px); }
+            body.layout-two .controls { width: calc(100vw - 28px); left: 14px; bottom: 14px; padding-left: 16px; padding-right: 16px; }
+            body.layout-two .progress-container { left: 30px; bottom: 70px; width: calc(100vw - 60px); }
+            body.layout-two .progress-container:hover { left: 30px; bottom: 69px; width: calc(100vw - 60px); }
+        }
+
+        /* ─── Error Toast ─── */
+        .error-toast {
+            position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 40;
+            background: rgba(255, 60, 60, 0.12); border: 1px solid rgba(255, 60, 60, 0.25);
+            color: #ff6b6b; padding: 10px 24px; border-radius: 30px; font-size: 0.85rem;
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+        }
+        .error-toast.show { opacity: 1; }

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>音乐可视化</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+
+    <div class="settings" id="settings">
+        <button class="settings-toggle" id="settings-toggle" title="播放器样式">⚙</button>
+        <div class="settings-panel">
+            <button class="layout-option active" data-layout="one">样式一</button>
+            <button class="layout-option" data-layout="two">样式二</button>
+        </div>
+    </div>
+
+    <div class="cover-art" id="cover-art">
+        <img id="cover-img" alt="专辑图">
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="upload-panel">
+            <h1>♫ 音乐可视化 ♫</h1>
+            <p class="subtitle">选择一首音乐，感受节奏的视觉魅力</p>
+            <label class="upload-btn" for="file-input">打开音乐文件</label>
+            <input type="file" id="file-input" accept="audio/*">
+            <p class="drop-hint">或拖放音频文件到页面</p>
+        </div>
+    </div>
+
+    <div class="progress-container" id="progress-container">
+        <div class="progress-track"></div>
+        <div class="progress-fill" id="progress-fill"></div>
+        <div class="progress-thumb" id="progress-thumb"></div>
+        <div class="progress-time-tip" id="progress-time-tip"></div>
+    </div>
+
+    <div class="lyrics-panel" id="lyrics-panel">
+        <div class="lyrics-header">
+            <h3>NOW PLAYING</h3>
+            <span class="track-name" id="track-name">—</span>
+        </div>
+        <div id="lyrics-content"></div>
+    </div>
+
+    <div class="controls" id="controls">
+        <button id="play-btn" title="播放 / 暂停">▶</button>
+        <div class="vol-wrap">
+            <span class="vol-icon">🔊</span>
+            <input type="range" id="volume-slider" min="0" max="100" value="75">
+        </div>
+    </div>
+
+    <div class="error-toast" id="error-toast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+    <script type="module" src="src/app.js"></script>
+</body>
+</html>
