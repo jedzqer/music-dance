@@ -17,9 +17,6 @@ const canvas = document.getElementById('canvas');
         const progressTimeTip = document.getElementById('progress-time-tip');
         const lyricsPanel = document.getElementById('lyrics-panel');
         const lyricsContent = document.getElementById('lyrics-content');
-        const settings = document.getElementById('settings');
-        const settingsToggle = document.getElementById('settings-toggle');
-        const layoutOptions = document.querySelectorAll('.layout-option');
         const coverArt = document.getElementById('cover-art');
         const coverImg = document.getElementById('cover-img');
 
@@ -50,8 +47,6 @@ const canvas = document.getElementById('canvas');
         let isDraggingProgress = false;
         let coverPalette = null;
         let coverUrl = null;
-        let activeLayout = 'one';
-        let mouseIdleTimer = null;
 
         function resize() {
             W = canvas.width = window.innerWidth;
@@ -73,21 +68,6 @@ const canvas = document.getElementById('canvas');
             if (!coverUrl) return;
             coverImg.src = coverUrl;
             coverArt.classList.add('has-cover');
-        }
-
-        function setLayout(layout) {
-            activeLayout = layout;
-            document.body.classList.toggle('layout-two', layout === 'two');
-            layoutOptions.forEach((button) => button.classList.toggle('active', button.dataset.layout === layout));
-            updateProgressBar();
-        }
-
-        function showSettingsForMouseMove() {
-            document.body.classList.add('mouse-active');
-            clearTimeout(mouseIdleTimer);
-            mouseIdleTimer = setTimeout(() => {
-                if (!settings.classList.contains('open')) document.body.classList.remove('mouse-active');
-            }, 1800);
         }
 
         function showError(msg) {
@@ -166,7 +146,6 @@ const canvas = document.getElementById('canvas');
                 const el = lyricsContent.querySelector(`.lyrics-line[data-index="${idx}"]`);
                 if (el) {
                     el.classList.add('active');
-                    if (activeLayout !== 'two') el.scrollIntoView({ block: 'center', behavior: 'smooth' });
                 }
             }
         }
@@ -194,29 +173,17 @@ const canvas = document.getElementById('canvas');
             if (!audioElement || !audioElement.duration) return;
             const pct = audioElement.currentTime / audioElement.duration;
             const pos = pct * 100;
-            if (activeLayout === 'two') {
-                progressFill.style.width = `${pos}%`;
-                progressFill.style.height = '';
-                progressThumb.style.left = `${pos}%`;
-                progressThumb.style.bottom = '';
-            } else {
-                progressFill.style.height = `${pos}%`;
-                progressFill.style.width = '';
-                progressThumb.style.bottom = `${pos}%`;
-                progressThumb.style.left = '';
-            }
+            progressFill.style.width = `${pos}%`;
+            progressFill.style.height = '';
+            progressThumb.style.left = `${pos}%`;
+            progressThumb.style.bottom = '';
         }
 
         function getProgressFromEvent(e) {
             const rect = progressContainer.getBoundingClientRect();
-            if (activeLayout === 'two') {
-                let x = e.clientX - rect.left;
-                x = Math.max(0, Math.min(rect.width, x));
-                return x / rect.width;
-            }
-            let y = e.clientY - rect.top;
-            y = Math.max(0, Math.min(rect.height, y));
-            return 1 - y / rect.height;
+            let x = e.clientX - rect.left;
+            x = Math.max(0, Math.min(rect.width, x));
+            return x / rect.width;
         }
 
         function seekFromEvent(e) {
@@ -246,13 +213,8 @@ const canvas = document.getElementById('canvas');
             const pct = getProgressFromEvent(e);
             const t = pct * audioElement.duration;
             progressTimeTip.textContent = formatTime(t);
-            if (activeLayout === 'two') {
-                progressTimeTip.style.left = `${pct * 100}%`;
-                progressTimeTip.style.top = '';
-            } else {
-                progressTimeTip.style.top = `${(1 - pct) * 100}%`;
-                progressTimeTip.style.left = '';
-            }
+            progressTimeTip.style.left = `${pct * 100}%`;
+            progressTimeTip.style.top = '';
         });
         progressContainer.addEventListener('mouseleave', () => {
             progressTimeTip.textContent = '';
@@ -367,25 +329,6 @@ const canvas = document.getElementById('canvas');
         volumeSlider.addEventListener('input', () => {
             if (audioElement) audioElement.volume = volumeSlider.value / 100;
         });
-
-        settingsToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            settings.classList.toggle('open');
-            showSettingsForMouseMove();
-        });
-
-        layoutOptions.forEach((button) => {
-            button.addEventListener('click', () => {
-                setLayout(button.dataset.layout);
-                settings.classList.remove('open');
-            });
-        });
-
-        document.addEventListener('click', (e) => {
-            if (!settings.contains(e.target)) settings.classList.remove('open');
-        });
-
-        document.addEventListener('mousemove', showSettingsForMouseMove);
 
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Space' && audioElement) {
