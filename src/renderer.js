@@ -4,6 +4,7 @@ import {
     detectBeat, addShockwave, updateShockwaves, getShockwaves,
     getBassPulse, getBeatEnergy, getLastBeatTime, updateBeatFlash, getBeatFlashAlpha
 } from './beatdetector.js';
+import { renderGlowLayer } from './glowlayer.js';
 
 const FFT_SIZE = 1024;
 export const NUM_LINES = 160;
@@ -93,21 +94,18 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     const [haloR, haloG, haloB] = coverPalette
         ? colorWithLightness(coverPalette.colors[0], 46 + globalIntensity * 18, 1.25)
         : hslToRgb(Math.max(0, bgHue - 18), 88, 48 + globalIntensity * 16);
-    const ambientGlow = ctx.createRadialGradient(driftX, driftY, 0, driftX, driftY, Math.max(W, H) * 0.68);
-    addGaussianGlowStops(ambientGlow, haloR, haloG, haloB, ambientAlpha);
-    ctx.fillStyle = ambientGlow;
-    ctx.fillRect(0, 0, W, H);
-
     const accentX = cx + Math.cos(t * 0.17 + 1.6) * W * 0.34;
     const accentY = cy + Math.sin(t * 0.15 + 0.7) * H * 0.26;
     const [ar, ag, ab] = coverPalette
         ? colorWithLightness(coverPalette.colors[1], 50 + bassPulse * 20, 1.28)
         : hslToRgb(330 - climaxLevel * 120 + Math.sin(t * 0.1) * 28, 88, 54 + bassPulse * 18);
-    const accentGlow = ctx.createRadialGradient(accentX, accentY, 0, accentX, accentY, Math.max(W, H) * 0.48);
     const accentAlpha = 0.055 + bassPulse * 0.12 + climaxLevel * 0.07;
-    addGaussianGlowStops(accentGlow, ar, ag, ab, accentAlpha);
-    ctx.fillStyle = accentGlow;
-    ctx.fillRect(0, 0, W, H);
+
+    renderGlowLayer(
+        W, H,
+        driftX, driftY, haloR / 255, haloG / 255, haloB / 255, ambientAlpha, 0.24,
+        accentX, accentY, ar / 255, ag / 255, ab / 255, accentAlpha, 0.17
+    );
 
     const coreR = innerRadius + bassPulse * maxRadius * 0.35 + climaxLevel * 25 + beatEnergy * 34 + Math.sin(t * 3) * 3 * bassPulse;
     const coreHue = 210 - bassPulse * 210 - climaxLevel * 30;

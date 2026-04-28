@@ -1,5 +1,6 @@
 import { init, getState, getEls, updateProgressBar } from './controls.js';
 import { draw } from './renderer.js';
+import { initGlowLayer, resizeGlowLayer } from './glowlayer.js';
 
 let W, H, cx, cy;
 
@@ -9,6 +10,7 @@ function resize() {
     H = els.canvas.height = window.innerHeight;
     cx = W / 2;
     cy = H / 2;
+    resizeGlowLayer(W, H);
 }
 
 function loop(ts) {
@@ -25,6 +27,7 @@ function loop(ts) {
 }
 
 init();
+initGlowLayer();
 
 window.addEventListener('resize', resize);
 resize();

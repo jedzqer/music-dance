@@ -29,7 +29,7 @@ npm run preview
 
 - **构建工具**: Vite
 - **音频分析**: Web Audio API
-- **可视化**: Canvas 2D
+- **可视化**: Canvas 2D + WebGL（光晕层）
 - **元数据解析**: jsmediatags (npm)
 
 ## 文件结构
@@ -45,6 +45,7 @@ npm run preview
 │   ├── app.js            # 入口：动画循环与 Canvas 尺寸
 │   ├── controls.js       # 播放控制、进度条、文件加载、歌词、封面
 │   ├── renderer.js       # Canvas 可视化渲染
+│   ├── glowlayer.js      # WebGL 光晕叠加层
 │   ├── beatdetector.js   # 节拍检测与冲击波效果
 │   ├── particles.js      # 粒子系统
 │   ├── lyrics.js         # 内嵌歌词读取与解析
