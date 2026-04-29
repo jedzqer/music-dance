@@ -438,9 +438,14 @@ async function playPlaylistItem(index) {
     if (!item) return;
 
     try {
-        const fileUrl = item.path.replace(/\\/g, '/');
-        const response = await fetch(`file:///${fileUrl}`);
-        const blob = await response.blob();
+        const buffer = await window.electronAPI.readFile(item.path);
+        const ext = item.name.split('.').pop().toLowerCase();
+        const mimeTypes = {
+            mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+            flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/mp4',
+            wma: 'audio/x-ms-wma', webm: 'audio/webm', opus: 'audio/opus'
+        };
+        const blob = new Blob([buffer], { type: mimeTypes[ext] || 'audio/mpeg' });
         const file = new File([blob], item.name, { type: blob.type });
         
         await loadFile(file);

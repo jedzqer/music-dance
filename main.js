@@ -106,3 +106,13 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
 ipcMain.handle('get-file-url', (event, filePath) => {
   return `file://${filePath}`;
 });
+
+ipcMain.handle('read-file', async (event, filePath) => {
+  try {
+    const buffer = await fs.promises.readFile(filePath);
+    return buffer;
+  } catch (error) {
+    console.error('读取文件失败:', error);
+    throw error;
+  }
+});

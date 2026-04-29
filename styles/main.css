@@ -249,6 +249,12 @@
         .button-group {
             display: flex; flex-direction: column; gap: 12px; align-items: center;
         }
+        .button-group .upload-btn {
+            width: 240px; text-align: center;
+        }
+        .button-group button.upload-btn {
+            appearance: none; -webkit-appearance: none;
+        }
         .folder-btn {
             background: rgba(79, 172, 254, 0.15) !important;
             border-color: rgba(79, 172, 254, 0.4) !important;
