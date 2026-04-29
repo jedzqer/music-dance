@@ -54,8 +54,8 @@ npm run preview
 ```text
 .
 ├── index.html            # 页面入口
-├── main.js               # Electron 主进程
-├── preload.js            # Electron 预加载脚本
+├── main.cjs              # Electron 主进程 (CommonJS)
+├── preload.cjs           # Electron 预加载脚本 (CommonJS)
 ├── package.json          # npm 脚本与开发依赖
 ├── vite.config.js        # Vite 构建配置
 ├── styles/
@@ -71,7 +71,9 @@ npm run preview
 │   ├── lyrics.js         # 内嵌歌词读取与解析
 │   ├── media.js          # 专辑封面读取与主题色提取
 │   ├── riff.js           # RIFF/WAV 数据块读取
-│   └── utils.js          # 通用工具函数
+│   ├── utils.js          # 通用工具函数
+│   └── shims/
+│       └── empty.js      # Node.js 模块空垫片（供 Vite 构建用）
 ├── dist/                 # Vite 构建输出目录
 └── release/              # Electron 打包输出目录
 ```

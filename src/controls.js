@@ -77,6 +77,13 @@ export function init() {
     els.playlistBtn.addEventListener('click', () => togglePlaylistPanel());
 }
 
+function setPlayIcon(playing) {
+    const playIcon = els.playBtn.querySelector('.icon-play');
+    const pauseIcon = els.playBtn.querySelector('.icon-pause');
+    if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
+    if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+}
+
 export function showError(msg) {
     els.errorToast.textContent = msg;
     els.errorToast.classList.add('show');
@@ -235,7 +242,7 @@ export async function cleanupAudio() {
     els.progressFill.style.width = '0%';
     els.progressThumb.style.bottom = '0%';
     els.progressThumb.style.left = '0%';
-    els.playBtn.textContent = '\u25b6';
+    setPlayIcon(false);
     els.trackName.textContent = '\u2014';
     resetParticles();
     resetBeatDetector();
@@ -263,7 +270,7 @@ async function loadFile(file) {
 
         state.audioElement.addEventListener('ended', () => {
             state.isPlaying = false;
-            els.playBtn.textContent = '\u25b6';
+            setPlayIcon(false);
         });
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
@@ -276,7 +283,7 @@ async function loadFile(file) {
 
         await state.audioElement.play();
         state.isPlaying = true;
-        els.playBtn.textContent = '\u23f8';
+        setPlayIcon(true);
 
         els.overlay.classList.add('hidden');
         els.controls.classList.add('visible');
@@ -302,12 +309,12 @@ function handlePlayPause() {
     if (!state.audioElement) return;
     if (state.isPlaying) {
         state.audioElement.pause();
-        els.playBtn.textContent = '\u25b6';
+        setPlayIcon(false);
         state.isPlaying = false;
     } else {
         if (state.audioContext.state === 'suspended') state.audioContext.resume();
         state.audioElement.play().catch(() => {});
-        els.playBtn.textContent = '\u23f8';
+        setPlayIcon(true);
         state.isPlaying = true;
     }
 }
