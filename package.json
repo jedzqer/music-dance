@@ -1,14 +1,47 @@
 {
+  "name": "music-dance",
+  "version": "1.0.0",
+  "description": "音乐可视化播放器",
+  "author": "jed",
   "type": "module",
+  "main": "main.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "vite"
+    "start": "vite",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && set NODE_ENV=development && electron .\"",
+    "electron:build": "vite build && electron-builder"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
     "http-server": "latest",
     "vite": "^6.4.1",
+    "wait-on": "^7.2.0",
     "jsmediatags": "^3.9.7"
+  },
+  "build": {
+    "appId": "com.musicdance.app",
+    "productName": "MusicDance",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "preload.js",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   }
 }

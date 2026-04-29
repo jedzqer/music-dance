@@ -4,6 +4,7 @@ import { parseLyrics, readEmbeddedLyrics } from './lyrics.js';
 import { resetParticles } from './particles.js';
 import { resetBeatDetector } from './beatdetector.js';
 import { getFFTSize, resetRenderer } from './renderer.js';
+import { Playlist } from './playlist.js';
 
 const state = {
     audioContext: null,
@@ -15,7 +16,8 @@ const state = {
     parsedLyrics: null,
     currentLyricsIndex: -1,
     coverPalette: null,
-    coverUrl: null
+    coverUrl: null,
+    playlist: new Playlist()
 };
 
 const els = {};
@@ -46,6 +48,14 @@ export function init() {
     els.lyricsContent = document.getElementById('lyrics-content');
     els.coverArt = document.getElementById('cover-art');
     els.coverImg = document.getElementById('cover-img');
+    els.folderBtn = document.getElementById('folder-btn');
+    els.playlistPanel = document.getElementById('playlist-panel');
+    els.playlistContent = document.getElementById('playlist-content');
+    els.playlistCount = document.getElementById('playlist-count');
+    els.playlistClose = document.getElementById('playlist-close');
+    els.prevBtn = document.getElementById('prev-btn');
+    els.nextBtn = document.getElementById('next-btn');
+    els.playlistBtn = document.getElementById('playlist-btn');
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
@@ -59,6 +69,12 @@ export function init() {
     document.addEventListener('mouseup', handleMouseUp);
     els.progressContainer.addEventListener('mousemove', handleProgressHover);
     els.progressContainer.addEventListener('mouseleave', handleProgressMouseLeave);
+    
+    els.folderBtn.addEventListener('click', handleFolderSelect);
+    els.playlistClose.addEventListener('click', () => togglePlaylistPanel(false));
+    els.prevBtn.addEventListener('click', handlePrevious);
+    els.nextBtn.addEventListener('click', handleNext);
+    els.playlistBtn.addEventListener('click', () => togglePlaylistPanel());
 }
 
 export function showError(msg) {
@@ -325,4 +341,130 @@ function handleDrop(e) {
     if (!file) return;
     els.fileInput.files = e.dataTransfer.files;
     els.fileInput.dispatchEvent(new Event('change'));
+}
+
+async function handleFolderSelect() {
+    if (!window.electronAPI) {
+        showError('请在Electron应用中使用此功能');
+        return;
+    }
+
+    try {
+        const folderPath = await window.electronAPI.selectFolder();
+        if (!folderPath) return;
+
+        const files = await state.playlist.loadFromFolder(folderPath);
+        if (files.length === 0) {
+            showError('所选文件夹中没有找到音频文件');
+            return;
+        }
+
+        renderPlaylist();
+        togglePlaylistPanel(true);
+        showError(`已加载 ${files.length} 首歌曲`);
+    } catch (error) {
+        console.error('选择文件夹失败:', error);
+        showError('无法加载文件夹，请检查权限');
+    }
+}
+
+function renderPlaylist() {
+    els.playlistContent.innerHTML = '';
+    els.playlistCount.textContent = `${state.playlist.getSize()} 首歌曲`;
+
+    if (state.playlist.isEmpty()) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'playlist-empty';
+        emptyDiv.textContent = '播放列表为空';
+        els.playlistContent.appendChild(emptyDiv);
+        return;
+    }
+
+    state.playlist.items.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'playlist-item';
+        if (index === state.playlist.currentIndex) {
+            itemDiv.classList.add('active');
+        }
+        itemDiv.dataset.index = index;
+
+        const indexSpan = document.createElement('span');
+        indexSpan.className = 'playlist-item-index';
+        indexSpan.textContent = index + 1;
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'playlist-item-info';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'playlist-item-name';
+        nameDiv.textContent = item.name.replace(/\.[^.]+$/, '');
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'playlist-item-meta';
+        metaDiv.textContent = formatFileSize(item.size);
+
+        infoDiv.appendChild(nameDiv);
+        infoDiv.appendChild(metaDiv);
+
+        itemDiv.appendChild(indexSpan);
+        itemDiv.appendChild(infoDiv);
+
+        itemDiv.addEventListener('click', () => {
+            playPlaylistItem(index);
+        });
+
+        els.playlistContent.appendChild(itemDiv);
+    });
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function togglePlaylistPanel(show) {
+    if (show === undefined) {
+        els.playlistPanel.classList.toggle('visible');
+    } else if (show) {
+        els.playlistPanel.classList.add('visible');
+    } else {
+        els.playlistPanel.classList.remove('visible');
+    }
+}
+
+async function playPlaylistItem(index) {
+    const item = state.playlist.setCurrentIndex(index);
+    if (!item) return;
+
+    try {
+        const fileUrl = item.path.replace(/\\/g, '/');
+        const response = await fetch(`file:///${fileUrl}`);
+        const blob = await response.blob();
+        const file = new File([blob], item.name, { type: blob.type });
+        
+        await loadFile(file);
+        renderPlaylist();
+    } catch (error) {
+        console.error('播放失败:', error);
+        showError('无法播放该文件');
+    }
+}
+
+async function handlePrevious() {
+    if (state.playlist.isEmpty()) return;
+
+    const item = state.playlist.getPrevious();
+    if (item) {
+        await playPlaylistItem(state.playlist.currentIndex);
+    }
+}
+
+async function handleNext() {
+    if (state.playlist.isEmpty()) return;
+
+    const item = state.playlist.getNext();
+    if (item) {
+        await playPlaylistItem(state.playlist.currentIndex);
+    }
 }
