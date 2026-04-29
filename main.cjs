@@ -1,10 +1,6 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
-import path from 'path';
-import fs from 'fs';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -19,7 +15,7 @@ function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.cjs')
     },
     icon: path.join(__dirname, 'dist/favicon.ico'),
     title: '音乐可视化',
@@ -110,7 +106,7 @@ ipcMain.handle('get-file-url', (event, filePath) => {
 ipcMain.handle('read-file', async (event, filePath) => {
   try {
     const buffer = await fs.promises.readFile(filePath);
-    return buffer;
+    return new Uint8Array(buffer);
   } catch (error) {
     console.error('读取文件失败:', error);
     throw error;

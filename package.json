@@ -4,7 +4,7 @@
   "description": "音乐可视化播放器",
   "author": "jed",
   "type": "module",
-  "main": "main.js",
+  "main": "main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -30,8 +30,8 @@
     },
     "files": [
       "dist/**/*",
-      "main.js",
-      "preload.js",
+      "main.cjs",
+      "preload.cjs",
       "package.json"
     ],
     "win": {

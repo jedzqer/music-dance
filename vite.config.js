@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const emptyShim = path.resolve(__dirname, 'src/shims/empty.js');
 
 export default defineConfig({
     base: './',
@@ -12,26 +13,18 @@ export default defineConfig({
     },
     resolve: {
         alias: {
-            'jsmediatags': path.resolve(__dirname, 'node_modules/jsmediatags/build2/jsmediatags.js')
+            'jsmediatags': path.resolve(__dirname, 'node_modules/jsmediatags/build2/jsmediatags.js'),
+            'react-native-fs': emptyShim,
+            'fs': emptyShim,
+            'path': emptyShim,
+            'stream': emptyShim
         }
     },
     optimizeDeps: {
-        include: ['jsmediatags'],
-        esbuildOptions: {
-            external: ['react-native-fs']
-        }
+        include: ['jsmediatags']
     },
     build: {
         outDir: 'dist',
-        emptyOutDir: true,
-        rollupOptions: {
-            external: [
-                'react-native-fs',
-                'buffer',
-                'fs',
-                'path',
-                'stream'
-            ]
-        }
+        emptyOutDir: true
     }
 });
