@@ -33,6 +33,19 @@ if (window.electronAPI) {
     document.getElementById('win-minimize')?.addEventListener('click', () => window.electronAPI.windowMinimize());
     document.getElementById('win-maximize')?.addEventListener('click', () => window.electronAPI.windowMaximize());
     document.getElementById('win-close')?.addEventListener('click', () => window.electronAPI.windowClose());
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            window.electronAPI.windowToggleFullscreen();
+        }
+    });
+
+    if (window.electronAPI.onFullscreenChange) {
+        window.electronAPI.onFullscreenChange((isFullscreen) => {
+            document.body.classList.toggle('fullscreen', isFullscreen);
+        });
+    }
 } else {
     document.getElementById('title-bar')?.remove();
 }

@@ -52,6 +52,14 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  mainWindow.on('enter-full-screen', () => {
+    mainWindow?.webContents.send('fullscreen-changed', true);
+  });
+
+  mainWindow.on('leave-full-screen', () => {
+    mainWindow?.webContents.send('fullscreen-changed', false);
+  });
 }
 
 app.whenReady().then(createWindow);
@@ -162,4 +170,12 @@ ipcMain.on('window-maximize', () => {
 
 ipcMain.on('window-close', () => {
   mainWindow?.close();
+});
+
+ipcMain.on('window-toggle-fullscreen', () => {
+  if (mainWindow) {
+    const willBeFullscreen = !mainWindow.isFullScreen();
+    mainWindow.setFullScreen(willBeFullscreen);
+    mainWindow.webContents.send('fullscreen-changed', willBeFullscreen);
+  }
 });

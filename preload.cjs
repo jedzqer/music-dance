@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),
-  windowClose: () => ipcRenderer.send('window-close')
+  windowClose: () => ipcRenderer.send('window-close'),
+  windowToggleFullscreen: () => ipcRenderer.send('window-toggle-fullscreen'),
+  onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-changed', (_event, value) => callback(value))
 });

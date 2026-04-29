@@ -144,7 +144,7 @@
         .progress-container:hover .progress-time-tip { color: rgba(255,255,255,0.7); }
 
         .cover-art {
-            position: fixed; left: 18px; top: 18px; z-index: 20;
+            position: fixed; left: 18px; top: 40px; z-index: 20;
             width: min(168px, 26vw); aspect-ratio: 1;
             border-radius: 22px; overflow: hidden;
             border: 1px solid rgba(255,255,255,0.08);
@@ -350,3 +350,7 @@
         .playlist-empty {
             text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.25);
         }
+
+        /* ─── Fullscreen Mode ─── */
+        body.fullscreen .title-bar { display: none; }
+        body.fullscreen .cover-art { top: 18px; }
