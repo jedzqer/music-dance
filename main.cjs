@@ -12,6 +12,7 @@ function createWindow() {
     height: 800,
     minWidth: 800,
     minHeight: 600,
+    frame: false,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -111,4 +112,20 @@ ipcMain.handle('read-file', async (event, filePath) => {
     console.error('读取文件失败:', error);
     throw error;
   }
+});
+
+ipcMain.on('window-minimize', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+
+ipcMain.on('window-close', () => {
+  mainWindow?.close();
 });

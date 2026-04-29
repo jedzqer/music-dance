@@ -29,6 +29,14 @@ function loop(ts) {
 init();
 initGlowLayer();
 
+if (window.electronAPI) {
+    document.getElementById('win-minimize')?.addEventListener('click', () => window.electronAPI.windowMinimize());
+    document.getElementById('win-maximize')?.addEventListener('click', () => window.electronAPI.windowMaximize());
+    document.getElementById('win-close')?.addEventListener('click', () => window.electronAPI.windowClose());
+} else {
+    document.getElementById('title-bar')?.remove();
+}
+
 window.addEventListener('resize', resize);
 resize();
 
