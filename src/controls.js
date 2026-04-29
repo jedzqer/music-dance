@@ -75,6 +75,8 @@ export function init() {
     els.prevBtn.addEventListener('click', handlePrevious);
     els.nextBtn.addEventListener('click', handleNext);
     els.playlistBtn.addEventListener('click', () => togglePlaylistPanel());
+
+    restoreLastFolder();
 }
 
 function setPlayIcon(playing) {
@@ -352,28 +354,56 @@ function handleDrop(e) {
 
 async function handleFolderSelect() {
     if (!window.electronAPI) {
-        showError('请在Electron应用中使用此功能');
-        return;
+      showError('请在Electron应用中使用此功能');
+      return;
     }
 
     try {
-        const folderPath = await window.electronAPI.selectFolder();
-        if (!folderPath) return;
+      const folderPath = await window.electronAPI.selectFolder();
+      if (!folderPath) return;
 
-        const files = await state.playlist.loadFromFolder(folderPath);
-        if (files.length === 0) {
-            showError('所选文件夹中没有找到音频文件');
-            return;
-        }
-
-        renderPlaylist();
-        togglePlaylistPanel(true);
-        showError(`已加载 ${files.length} 首歌曲`);
+      await loadFolder(folderPath);
     } catch (error) {
-        console.error('选择文件夹失败:', error);
-        showError('无法加载文件夹，请检查权限');
+      console.error('选择文件夹失败:', error);
+      showError('无法加载文件夹，请检查权限');
     }
-}
+  }
+
+  async function loadFolder(folderPath) {
+    try {
+      const files = await state.playlist.loadFromFolder(folderPath);
+      if (files.length === 0) {
+        showError('所选文件夹中没有找到音频文件');
+        return;
+      }
+
+      renderPlaylist();
+      togglePlaylistPanel(true);
+      showError(`已加载 ${files.length} 首歌曲`);
+
+      if (window.electronAPI) {
+        window.electronAPI.saveLastFolder(folderPath).catch(() => {});
+      }
+    } catch (error) {
+      console.error('加载文件夹失败:', error);
+      showError('无法加载文件夹，请检查权限');
+    }
+  }
+
+  async function restoreLastFolder() {
+    if (!window.electronAPI) return;
+    try {
+      const folderPath = await window.electronAPI.getLastFolder();
+      if (!folderPath) return;
+
+      const files = await state.playlist.loadFromFolder(folderPath);
+      if (files.length > 0) {
+        renderPlaylist();
+      }
+    } catch (error) {
+      console.error('恢复上次文件夹失败:', error);
+    }
+  }
 
 function renderPlaylist() {
     els.playlistContent.innerHTML = '';

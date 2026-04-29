@@ -6,6 +6,25 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow;
 
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+
+function loadSettings() {
+  try {
+    if (fs.existsSync(settingsPath)) {
+      return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    }
+  } catch {}
+  return {};
+}
+
+function saveSettings(settings) {
+  try {
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('保存设置失败:', err);
+  }
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -98,6 +117,21 @@ ipcMain.handle('scan-folder', async (event, folderPath) => {
     console.error('扫描文件夹失败:', error);
     throw error;
   }
+});
+
+ipcMain.handle('get-last-folder', () => {
+  const settings = loadSettings();
+  const folderPath = settings.lastFolder;
+  if (folderPath && fs.existsSync(folderPath)) {
+    return folderPath;
+  }
+  return null;
+});
+
+ipcMain.handle('save-last-folder', (event, folderPath) => {
+  const settings = loadSettings();
+  settings.lastFolder = folderPath;
+  saveSettings(settings);
 });
 
 ipcMain.handle('get-file-url', (event, filePath) => {
