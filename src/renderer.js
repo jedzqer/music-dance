@@ -91,13 +91,14 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     const ambientAlpha = 0.11 + globalIntensity * 0.16 + climaxLevel * 0.08;
     const driftX = cx + Math.sin(t * 0.13) * W * 0.2;
     const driftY = cy + Math.cos(t * 0.11) * H * 0.18;
+    const accentColor = coverPalette?.colors[1] || coverPalette?.colors[0];
     const [haloR, haloG, haloB] = coverPalette
         ? colorWithLightness(coverPalette.colors[0], 46 + globalIntensity * 18, 1.25)
         : hslToRgb(Math.max(0, bgHue - 18), 88, 48 + globalIntensity * 16);
     const accentX = cx + Math.cos(t * 0.17 + 1.6) * W * 0.34;
     const accentY = cy + Math.sin(t * 0.15 + 0.7) * H * 0.26;
     const [ar, ag, ab] = coverPalette
-        ? colorWithLightness(coverPalette.colors[1], 50 + bassPulse * 20, 1.28)
+        ? colorWithLightness(accentColor, 50 + bassPulse * 20, 1.28)
         : hslToRgb(330 - climaxLevel * 120 + Math.sin(t * 0.1) * 28, 88, 54 + bassPulse * 18);
     const accentAlpha = 0.055 + bassPulse * 0.12 + climaxLevel * 0.07;
 

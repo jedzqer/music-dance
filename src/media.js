@@ -102,7 +102,7 @@ async function imageUrlToPalette(url) {
         image.onerror = reject;
         image.src = url;
     });
-    const size = 48;
+    const size = 64;
     const c = document.createElement('canvas');
     c.width = size;
     c.height = size;
@@ -113,49 +113,39 @@ async function imageUrlToPalette(url) {
 
     for (let i = 0; i < pixels.length; i += 4) {
         const a = pixels[i + 3];
-        if (a < 180) continue;
+        if (a < 128) continue;
         const r = pixels[i];
         const g = pixels[i + 1];
         const b = pixels[i + 2];
         const [, s, l] = rgbToHsl(r, g, b);
-        if (l < 8) continue;
-        const key = `${r >> 4},${g >> 4},${b >> 4}`;
+        if (l < 5 || l > 98) continue;
+        const key = `${r >> 3},${g >> 3},${b >> 3}`;
         const bucket = buckets.get(key) || { r: 0, g: 0, b: 0, count: 0, score: 0 };
-        const weight = 1 + s / 55 + (100 - Math.abs(l - 55)) / 100;
-        bucket.r += r * weight;
-        bucket.g += g * weight;
-        bucket.b += b * weight;
-        bucket.count += weight;
-        bucket.score += weight * (0.65 + s / 80) * (1 - Math.abs(l - 52) / 80);
+        const satWeight = 0.3 + s / 100;
+        const lightWeight = 1 - Math.abs(l - 50) / 50;
+        const weight = satWeight * (0.6 + lightWeight * 0.4);
+        bucket.r += r;
+        bucket.g += g;
+        bucket.b += b;
+        bucket.count += 1;
+        bucket.score += weight;
         buckets.set(key, bucket);
     }
 
     const colors = Array.from(buckets.values())
-        .filter(color => color.count > 0)
+        .filter(color => color.count >= 2)
         .map(color => ({
             r: color.r / color.count,
             g: color.g / color.count,
             b: color.b / color.count,
-            score: color.score
+            score: color.score / color.count
         }))
         .sort((a, b) => b.score - a.score);
 
     if (!colors.length) return null;
-    const palette = [];
-    for (const color of colors) {
-        const [h] = rgbToHsl(color.r, color.g, color.b);
-        const isDistinct = palette.every((existing) => {
-            const [eh] = rgbToHsl(existing.r, existing.g, existing.b);
-            return Math.abs(((h - eh + 540) % 360) - 180) > 28;
-        });
-        if (isDistinct) palette.push(color);
-        if (palette.length >= 2) break;
+    const palette = [colors[0]];
+    if (colors.length > 1) {
+        palette.push(colors[1]);
     }
-    while (palette.length < 2) {
-        const source = palette[0] || colors[0];
-        const [h, s, l] = rgbToHsl(source.r, source.g, source.b);
-        const [r, g, b] = hslToRgb((h + 180) % 360, clamp(s + 18, 48, 96), clamp(l + 10, 42, 72));
-        palette.push({ r, g, b, score: source.score * 0.75 });
-    }
-    return { colors: palette.slice(0, 2) };
+    return { colors: palette };
 }
