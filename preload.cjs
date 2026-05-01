@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   scanFolder: (folderPath) => ipcRenderer.invoke('scan-folder', folderPath),
   getLastFolder: () => ipcRenderer.invoke('get-last-folder'),
   saveLastFolder: (folderPath) => ipcRenderer.invoke('save-last-folder', folderPath),
+  getVolume: () => ipcRenderer.invoke('get-volume'),
+  saveVolume: (volume) => ipcRenderer.invoke('save-volume', volume),
   getFileUrl: (filePath) => ipcRenderer.invoke('get-file-url', filePath),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
   windowMinimize: () => ipcRenderer.send('window-minimize'),

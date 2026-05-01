@@ -76,6 +76,7 @@ export function init() {
     els.nextBtn.addEventListener('click', handleNext);
     els.playlistBtn.addEventListener('click', () => togglePlaylistPanel());
 
+    restoreVolume();
     restoreLastFolder();
 }
 
@@ -323,6 +324,9 @@ function handlePlayPause() {
 
 function handleVolume() {
     if (state.audioElement) state.audioElement.volume = els.volumeSlider.value / 100;
+    if (window.electronAPI) {
+        window.electronAPI.saveVolume(parseInt(els.volumeSlider.value)).catch(() => {});
+    }
 }
 
 function handleKeyDown(e) {
@@ -387,6 +391,18 @@ async function handleFolderSelect() {
     } catch (error) {
       console.error('加载文件夹失败:', error);
       showError('无法加载文件夹，请检查权限');
+    }
+  }
+
+  async function restoreVolume() {
+    if (!window.electronAPI) return;
+    try {
+      const volume = await window.electronAPI.getVolume();
+      if (typeof volume === 'number') {
+        els.volumeSlider.value = volume;
+      }
+    } catch (error) {
+      console.error('恢复音量失败:', error);
     }
   }
 

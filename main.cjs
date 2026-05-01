@@ -142,6 +142,17 @@ ipcMain.handle('save-last-folder', (event, folderPath) => {
   saveSettings(settings);
 });
 
+ipcMain.handle('get-volume', () => {
+  const settings = loadSettings();
+  return typeof settings.volume === 'number' ? settings.volume : 80;
+});
+
+ipcMain.handle('save-volume', (event, volume) => {
+  const settings = loadSettings();
+  settings.volume = volume;
+  saveSettings(settings);
+});
+
 ipcMain.handle('get-file-url', (event, filePath) => {
   return `file://${filePath}`;
 });
