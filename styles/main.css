@@ -291,15 +291,20 @@
 
         /* ─── Playlist Panel ─── */
         .playlist-panel {
-            position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+            position: fixed;
             width: min(500px, 80vw); max-height: 70vh; z-index: 35;
             background: rgba(10, 10, 25, 0.92); backdrop-filter: blur(24px);
             border-radius: 18px; border: 1px solid rgba(255,255,255,0.08);
             box-shadow: 0 22px 70px rgba(0,0,0,0.44);
-            opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;
+            opacity: 0; visibility: hidden;
+            transform: translateY(20px) scale(0.95);
+            transition: opacity 0.3s, visibility 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
             font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         }
-        .playlist-panel.visible { opacity: 1; visibility: visible; }
+        .playlist-panel.visible {
+            opacity: 1; visibility: visible;
+            transform: translateY(0) scale(1);
+        }
         .playlist-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.06);

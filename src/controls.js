@@ -461,13 +461,35 @@ function formatFileSize(bytes) {
 }
 
 function togglePlaylistPanel(show) {
-    if (show === undefined) {
-        els.playlistPanel.classList.toggle('visible');
-    } else if (show) {
+    const shouldShow = show === undefined ? !els.playlistPanel.classList.contains('visible') : show;
+    
+    if (shouldShow) {
+        positionPlaylistAboveButton();
         els.playlistPanel.classList.add('visible');
     } else {
         els.playlistPanel.classList.remove('visible');
     }
+}
+
+function positionPlaylistAboveButton() {
+    const btnRect = els.playlistBtn.getBoundingClientRect();
+    const panelWidth = Math.min(500, window.innerWidth * 0.8);
+    const panelMaxHeight = window.innerHeight * 0.7;
+    const gap = 12;
+    
+    let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
+    left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
+    
+    let bottom = window.innerHeight - btnRect.top + gap;
+    
+    if (bottom + panelMaxHeight > window.innerHeight - 16) {
+        bottom = window.innerHeight - btnRect.top + gap;
+    }
+    
+    els.playlistPanel.style.left = left + 'px';
+    els.playlistPanel.style.bottom = bottom + 'px';
+    els.playlistPanel.style.top = 'auto';
+    els.playlistPanel.style.width = panelWidth + 'px';
 }
 
 async function playPlaylistItem(index) {
