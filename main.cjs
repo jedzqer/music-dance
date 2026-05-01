@@ -37,7 +37,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.cjs')
     },
-    icon: path.join(__dirname, 'dist/favicon.ico'),
+    icon: path.join(__dirname, 'icon.ico'),
     title: '音乐可视化',
     backgroundColor: '#050510'
   });
