@@ -55,11 +55,11 @@ resize();
 
 requestAnimationFrame(loop);
 
-document.addEventListener('keydown', (e) => {
+document.addEventListener('keydown', async (e) => {
     if (e.key === 'Escape') {
         const s = getState();
         if (!s.onHomePage) {
-            showHomePage();
+            await showHomePage();
         }
     }
 });

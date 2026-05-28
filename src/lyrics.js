@@ -1,5 +1,4 @@
-import jsmediatags from 'jsmediatags';
-import { extractRiffChunk } from './riff.js';
+import { chunkId, readInt32, readSyncSafeInt, decodeId3Text, findTextAfterTerminator, parseFlacBlocks, extractWavId3Data, readJsmediatags } from './binary-utils.js';
 
 export function parseLyrics(raw) {
     if (raw && typeof raw === 'object') raw = raw.lyrics || raw.text || raw.description || raw.data || String(raw);
@@ -45,25 +44,9 @@ export async function readEmbeddedLyrics(file) {
 }
 
 function readLyricsFromTags(file) {
-    return new Promise((resolve) => {
-        try {
-            jsmediatags.read(file, {
-                onSuccess: (tag) => {
-                    let raw = null;
-                    if (tag.tags && tag.tags.lyrics) {
-                        raw = normalizeRawLyrics(tag.tags.lyrics);
-                    }
-                    if (!raw && tag.tags) {
-                        const uslt = tag.tags.USLT;
-                        if (uslt) raw = normalizeRawLyrics(uslt);
-                    }
-                    resolve(raw);
-                },
-                onError: () => resolve(null)
-            });
-        } catch (_) {
-            resolve(null);
-        }
+    return readJsmediatags(file, tag => {
+        const raw = tag.tags?.lyrics || tag.tags?.USLT;
+        return raw ? normalizeRawLyrics(raw) : null;
     });
 }
 
@@ -73,60 +56,43 @@ function normalizeRawLyrics(raw) {
 }
 
 async function extractFlacLyrics(file) {
-    const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-    if (header[0] !== 0x66 || header[1] !== 0x4c || header[2] !== 0x61 || header[3] !== 0x43) return null;
-
-    let offset = 4;
-    const decoder = new TextDecoder('utf-8');
-    while (offset + 4 <= file.size) {
-        const blockHeader = new Uint8Array(await file.slice(offset, offset + 4).arrayBuffer());
-        const isLast = (blockHeader[0] & 0x80) !== 0;
-        const blockType = blockHeader[0] & 0x7f;
-        const blockLength = (blockHeader[1] << 16) | (blockHeader[2] << 8) | blockHeader[3];
-        offset += 4;
-
-        if (blockType === 4) {
-            const data = new Uint8Array(await file.slice(offset, offset + blockLength).arrayBuffer());
-            const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-            let pos = 0;
-            const readString = () => {
-                if (pos + 4 > data.length) return null;
-                const len = view.getUint32(pos, true);
-                pos += 4;
-                if (pos + len > data.length) return null;
-                const text = decoder.decode(data.slice(pos, pos + len));
-                pos += len;
-                return text;
-            };
-
-            readString();
+    return parseFlacBlocks(file, (blockType, data) => {
+        if (blockType !== 4) return undefined;
+        const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+        const decoder = new TextDecoder('utf-8');
+        let pos = 0;
+        const readString = () => {
             if (pos + 4 > data.length) return null;
-            const count = view.getUint32(pos, true);
+            const len = view.getUint32(pos, true);
             pos += 4;
+            if (pos + len > data.length) return null;
+            const text = decoder.decode(data.slice(pos, pos + len));
+            pos += len;
+            return text;
+        };
 
-            for (let i = 0; i < count; i++) {
-                const comment = readString();
-                if (!comment) continue;
-                const eq = comment.indexOf('=');
-                if (eq === -1) continue;
-                const key = comment.slice(0, eq).toUpperCase();
-                if (key === 'LYRICS' || key === 'UNSYNCEDLYRICS' || key === 'SYNCEDLYRICS') {
-                    return comment.slice(eq + 1);
-                }
+        readString();
+        if (pos + 4 > data.length) return null;
+        const count = view.getUint32(pos, true);
+        pos += 4;
+
+        for (let i = 0; i < count; i++) {
+            const comment = readString();
+            if (!comment) continue;
+            const eq = comment.indexOf('=');
+            if (eq === -1) continue;
+            const key = comment.slice(0, eq).toUpperCase();
+            if (key === 'LYRICS' || key === 'UNSYNCEDLYRICS' || key === 'SYNCEDLYRICS') {
+                return comment.slice(eq + 1);
             }
-            return null;
         }
-
-        offset += blockLength;
-        if (isLast) break;
-    }
-    return null;
+        return null;
+    });
 }
 
 async function extractWavId3Lyrics(file) {
-    const data = await extractRiffChunk(file, ['ID3 ']);
-    if (!data || chunkId(data, 0, 3) !== 'ID3') return null;
-    return await readLyricsFromTags(new File([data], `${file.name}.id3`, { type: 'audio/mpeg' })) || parseId3Lyrics(data);
+    const id3File = await extractWavId3Data(file);
+    return id3File ? readLyricsFromTags(id3File) : null;
 }
 
 function parseId3Lyrics(data) {
@@ -167,35 +133,3 @@ function decodeTxxxFrame(frame) {
     return decodeId3Text(frame.slice(valueStart), frame[0]);
 }
 
-function findTextAfterTerminator(frame, pos, encoding) {
-    const step = encoding === 1 || encoding === 2 ? 2 : 1;
-    for (let i = pos; i + step <= frame.length; i += step) {
-        if (step === 2 ? frame[i] === 0 && frame[i + 1] === 0 : frame[i] === 0) return i + step;
-    }
-    return -1;
-}
-
-function decodeId3Text(bytes, encoding) {
-    if (!bytes.length) return null;
-    if (encoding === 1) {
-        if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.slice(2)).replace(/\0+$/g, '');
-        if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.slice(2)).replace(/\0+$/g, '');
-        return new TextDecoder('utf-16le').decode(bytes).replace(/^\ufeff|\0+$/g, '');
-    }
-    if (encoding === 2) return new TextDecoder('utf-16be').decode(bytes).replace(/^\ufeff|\0+$/g, '');
-    return new TextDecoder(encoding === 3 ? 'utf-8' : 'latin1').decode(bytes).replace(/\0+$/g, '');
-}
-
-function readInt32(data, offset) {
-    return ((data[offset] << 24) | (data[offset + 1] << 16) | (data[offset + 2] << 8) | data[offset + 3]) >>> 0;
-}
-
-function readSyncSafeInt(data, offset) {
-    return (data[offset] << 21) | (data[offset + 1] << 14) | (data[offset + 2] << 7) | data[offset + 3];
-}
-
-function chunkId(bytes, offset, length = 4) {
-    let id = '';
-    for (let i = 0; i < length; i++) id += String.fromCharCode(bytes[offset + i]);
-    return id;
-}

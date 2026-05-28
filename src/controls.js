@@ -17,11 +17,15 @@ const state = {
     currentLyricsIndex: -1,
     coverPalette: null,
     coverUrl: null,
+    audioBlobUrl: null,
     playlist: new Playlist(),
     onHomePage: true
 };
 
 const els = {};
+
+let lyricsLineElements = [];
+let currentActiveLyricsEl = null;
 
 export function getState() {
     return state;
@@ -65,7 +69,6 @@ export function init() {
     els.volumeSlider.addEventListener('input', handleVolume);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('dragover', handleDragOver);
-    document.addEventListener('dragleave', handleDragLeave);
     document.addEventListener('drop', handleDrop);
     els.progressContainer.addEventListener('mousedown', handleProgressMouseDown);
     document.addEventListener('mousemove', handleMouseMove);
@@ -166,6 +169,8 @@ async function loadCoverArt(file) {
 
 function renderLyrics() {
     els.lyricsContent.innerHTML = '';
+    lyricsLineElements = [];
+    currentActiveLyricsEl = null;
     if (!state.parsedLyrics) {
         const div = document.createElement('div');
         div.className = 'lyrics-empty';
@@ -178,10 +183,14 @@ function renderLyrics() {
     for (let i = 0; i < state.parsedLyrics.lines.length; i++) {
         const div = document.createElement('div');
         div.className = 'lyrics-line';
-        if (!state.parsedLyrics.isLRC && i === 0) div.classList.add('active');
+        if (!state.parsedLyrics.isLRC && i === 0) {
+            div.classList.add('active');
+            currentActiveLyricsEl = div;
+        }
         div.textContent = state.parsedLyrics.lines[i].text;
         div.dataset.index = i;
         els.lyricsContent.appendChild(div);
+        lyricsLineElements.push(div);
     }
 }
 
@@ -194,12 +203,12 @@ function updateLyricsHighlight(currentTime) {
     if (idx === state.currentLyricsIndex) return;
     state.currentLyricsIndex = idx;
 
-    const prev = els.lyricsContent.querySelector('.lyrics-line.active');
-    if (prev) prev.classList.remove('active');
+    if (currentActiveLyricsEl) currentActiveLyricsEl.classList.remove('active');
+    currentActiveLyricsEl = null;
 
-    if (idx >= 0) {
-        const el = els.lyricsContent.querySelector(`.lyrics-line[data-index="${idx}"]`);
-        if (el) el.classList.add('active');
+    if (idx >= 0 && idx < lyricsLineElements.length) {
+        currentActiveLyricsEl = lyricsLineElements[idx];
+        currentActiveLyricsEl.classList.add('active');
     }
 }
 
@@ -240,10 +249,14 @@ export async function cleanupAudio() {
     state.coverPalette = null;
     if (state.coverUrl) URL.revokeObjectURL(state.coverUrl);
     state.coverUrl = null;
+    if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
+    state.audioBlobUrl = null;
     els.coverImg.removeAttribute('src');
     els.coverArt.classList.remove('has-cover');
     els.lyricsContent.innerHTML = '';
     els.lyricsPanel.classList.remove('visible');
+    lyricsLineElements = [];
+    currentActiveLyricsEl = null;
     els.progressFill.style.height = '0%';
     els.progressFill.style.width = '0%';
     els.progressThumb.style.bottom = '0%';
@@ -267,6 +280,7 @@ async function loadFile(file) {
         state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
 
         const url = URL.createObjectURL(file);
+        state.audioBlobUrl = url;
         state.audioElement = new Audio(url);
         state.audioElement.volume = els.volumeSlider.value / 100;
 
@@ -343,10 +357,6 @@ function handleKeyDown(e) {
 
 function handleDragOver(e) {
     e.preventDefault();
-}
-
-function handleDragLeave(e) {
-    // no-op
 }
 
 function handleDrop(e) {
@@ -499,14 +509,17 @@ function positionPlaylistAboveButton() {
     left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
     
     let bottom = window.innerHeight - btnRect.top + gap;
-    
-    if (bottom + panelMaxHeight > window.innerHeight - 16) {
-        bottom = window.innerHeight - btnRect.top + gap;
+
+    if (window.innerHeight - bottom - panelMaxHeight < 16) {
+        // Not enough room above the button, position below instead
+        els.playlistPanel.style.top = (btnRect.bottom + gap) + 'px';
+        els.playlistPanel.style.bottom = 'auto';
+    } else {
+        els.playlistPanel.style.bottom = bottom + 'px';
+        els.playlistPanel.style.top = 'auto';
     }
-    
+
     els.playlistPanel.style.left = left + 'px';
-    els.playlistPanel.style.bottom = bottom + 'px';
-    els.playlistPanel.style.top = 'auto';
     els.playlistPanel.style.width = panelWidth + 'px';
 }
 

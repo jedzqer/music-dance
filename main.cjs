@@ -13,7 +13,7 @@ function loadSettings() {
     if (fs.existsSync(settingsPath)) {
       return JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
     }
-  } catch {}
+  } catch (e) { console.warn('设置文件读取失败:', e.message); }
   return {};
 }
 
@@ -151,10 +151,6 @@ ipcMain.handle('save-volume', (event, volume) => {
   const settings = loadSettings();
   settings.volume = volume;
   saveSettings(settings);
-});
-
-ipcMain.handle('get-file-url', (event, filePath) => {
-  return `file://${filePath}`;
 });
 
 ipcMain.handle('read-file', async (event, filePath) => {

@@ -44,10 +44,12 @@ export function updateParticles(globalIntensity, ctx) {
     for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update(globalIntensity);
         if (particles[i].life <= 0) {
-            particles.splice(i, 1);
-        } else {
-            particles[i].draw(ctx);
+            particles[i] = particles[particles.length - 1];
+            particles.length--;
         }
+    }
+    for (let i = 0; i < particles.length; i++) {
+        particles[i].draw(ctx);
     }
     while (particles.length > MAX_PARTICLES) {
         particles.shift();

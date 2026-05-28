@@ -1,3 +1,5 @@
+import { chunkId } from './binary-utils.js';
+
 export async function extractRiffChunk(file, wantedIds) {
     const header = new Uint8Array(await file.slice(0, 12).arrayBuffer());
     if (chunkId(header, 0) !== 'RIFF' || chunkId(header, 8) !== 'WAVE') return null;
@@ -18,8 +20,4 @@ export async function extractRiffChunk(file, wantedIds) {
         offset = dataOffset + size + (size % 2);
     }
     return null;
-}
-
-function chunkId(bytes, offset) {
-    return String.fromCharCode(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);
 }

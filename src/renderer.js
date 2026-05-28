@@ -7,7 +7,7 @@ import {
 import { renderGlowLayer } from './glowlayer.js';
 
 const FFT_SIZE = 1024;
-export const NUM_LINES = 160;
+const NUM_LINES = 160;
 
 let avgVolume = 0;
 let climaxLevel = 0;
@@ -17,20 +17,8 @@ export function resetRenderer() {
     climaxLevel = 0;
 }
 
-export function getClimaxLevel() {
-    return climaxLevel;
-}
-
 export function getFFTSize() {
     return FFT_SIZE;
-}
-
-export function addGaussianGlowStops(gradient, r, g, b, alpha) {
-    for (let i = 0; i <= 12; i++) {
-        const p = i / 12;
-        const a = alpha * Math.exp(-p * p * 4.2);
-        gradient.addColorStop(p, `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${a})`);
-    }
 }
 
 export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {

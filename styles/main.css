@@ -10,7 +10,7 @@
         }
         .title-bar-text {
             font-size: 12px; color: rgba(255,255,255,0.45);
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
             padding-left: 6px;
         }
         .title-bar-controls {
@@ -28,6 +28,7 @@
         :root {
             --rail-height: min(540px, 78vh);
             --rail-controls-space: 178px;
+            --font-main: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
         }
 
         canvas {
@@ -43,7 +44,7 @@
             display: flex;
             background: rgba(5, 5, 16, 0.85);
             backdrop-filter: blur(20px);
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
             transition: opacity 0.5s, visibility 0.5s;
         }
         .home-page.hidden {
@@ -154,7 +155,7 @@
             margin-right: -8px;
         }
 
-        /* ─── Left Player Rail ─── */
+        /* ─── Left Player Rail (base / layout-one defaults — layout-two overrides below) ─── */
         .controls {
             position: fixed; left: 12px; top: 50%; width: 52px; height: var(--rail-height);
             z-index: 21; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 13px;
@@ -163,7 +164,7 @@
             box-shadow: 0 16px 50px rgba(0,0,0,0.28), inset 0 0 28px rgba(79,172,254,0.04);
             opacity: 0; transition: opacity 0.4s, transform 0.4s; pointer-events: none;
             transform: translate(-8px, -50%);
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
         }
         .controls.visible { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
         .controls button {
@@ -215,7 +216,7 @@
         .progress-time-tip {
             position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
             color: rgba(255,255,255,0); font-size: 0.7rem; white-space: nowrap;
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
             transition: color 0.2s; pointer-events: none;
         }
         .progress-container:hover .progress-time-tip { color: rgba(255,255,255,0.7); }
@@ -246,7 +247,7 @@
             border-radius: 18px; border: 1px solid rgba(255,255,255,0.06);
             padding: 18px 14px; overflow-y: auto; overflow-x: hidden;
             opacity: 0; transition: opacity 0.5s;
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
             scroll-behavior: smooth;
         }
         .lyrics-panel.visible { opacity: 1; }
@@ -281,6 +282,7 @@
             padding: 30px 0;
         }
 
+        /* ─── layout-two: the only active layout (body class is hardcoded in HTML) ─── */
         body.layout-two .controls {
             left: 22px; top: auto; bottom: 22px; width: min(440px, calc(100vw - 44px)); height: 72px;
             flex-direction: row; justify-content: center; gap: 18px;
@@ -342,7 +344,7 @@
             position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 40;
             background: rgba(255, 60, 60, 0.12); border: 1px solid rgba(255, 60, 60, 0.25);
             color: #ff6b6b; padding: 10px 24px; border-radius: 30px; font-size: 0.85rem;
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
             opacity: 0; transition: opacity 0.3s; pointer-events: none;
         }
         .error-toast.show { opacity: 1; }
@@ -358,7 +360,7 @@
             opacity: 0; visibility: hidden;
             transform: translateY(20px) scale(0.95);
             transition: opacity 0.3s, visibility 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            font-family: var(--font-main);
         }
         .playlist-panel.visible {
             opacity: 1; visibility: visible;

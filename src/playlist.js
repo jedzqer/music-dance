@@ -21,42 +21,10 @@ export class Playlist {
     }
   }
 
-  addFiles(files) {
-    for (const file of files) {
-      const exists = this.items.some(item => item.path === file.path);
-      if (!exists) {
-        this.items.push(file);
-      }
-    }
-    return this.items;
-  }
-
-  removeItem(index) {
-    if (index >= 0 && index < this.items.length) {
-      this.items.splice(index, 1);
-      if (this.currentIndex >= this.items.length) {
-        this.currentIndex = this.items.length - 1;
-      }
-    }
-  }
-
-  clear() {
-    this.items = [];
-    this.currentIndex = -1;
-    this.folderPath = null;
-  }
-
   setCurrentIndex(index) {
     if (index >= 0 && index < this.items.length) {
       this.currentIndex = index;
       return this.items[index];
-    }
-    return null;
-  }
-
-  getCurrentItem() {
-    if (this.currentIndex >= 0 && this.currentIndex < this.items.length) {
-      return this.items[this.currentIndex];
     }
     return null;
   }
@@ -83,22 +51,6 @@ export class Playlist {
     
     this.currentIndex = prevIndex;
     return this.items[this.currentIndex];
-  }
-
-  shuffle() {
-    for (let i = this.items.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [this.items[i], this.items[j]] = [this.items[j], this.items[i]];
-    }
-    this.currentIndex = -1;
-  }
-
-  getItemByPath(filePath) {
-    return this.items.find(item => item.path === filePath);
-  }
-
-  getIndexByPath(filePath) {
-    return this.items.findIndex(item => item.path === filePath);
   }
 
   getSize() {

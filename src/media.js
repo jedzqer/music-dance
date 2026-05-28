@@ -1,6 +1,5 @@
-import jsmediatags from 'jsmediatags';
 import { clamp, hslToRgb, rgbToHsl } from './utils.js';
-import { extractRiffChunk } from './riff.js';
+import { chunkId, parseFlacBlocks, extractWavId3Data, readJsmediatags } from './binary-utils.js';
 
 export function pictureToImageUrl(picture) {
     if (!picture || !picture.data || !picture.format) return null;
@@ -16,16 +15,7 @@ export async function readEmbeddedPicture(file) {
 }
 
 async function readPictureFromTags(file) {
-    return new Promise((resolve) => {
-        try {
-            jsmediatags.read(file, {
-                onSuccess: (tag) => resolve(tag.tags?.picture || null),
-                onError: () => resolve(null)
-            });
-        } catch (_) {
-            resolve(null);
-        }
-    });
+    return readJsmediatags(file, tag => tag.tags?.picture || null);
 }
 
 export async function loadCoverPalette(file) {
@@ -61,39 +51,16 @@ function flacPictureBlockToPicture(data) {
 }
 
 async function extractFlacPicture(file) {
-    const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-    if (header[0] !== 0x66 || header[1] !== 0x4c || header[2] !== 0x61 || header[3] !== 0x43) return null;
-
-    let offset = 4;
-    while (offset + 4 <= file.size) {
-        const blockHeader = new Uint8Array(await file.slice(offset, offset + 4).arrayBuffer());
-        const isLast = (blockHeader[0] & 0x80) !== 0;
-        const blockType = blockHeader[0] & 0x7f;
-        const blockLength = (blockHeader[1] << 16) | (blockHeader[2] << 8) | blockHeader[3];
-        offset += 4;
-
-        if (blockType === 6) {
-            const data = new Uint8Array(await file.slice(offset, offset + blockLength).arrayBuffer());
-            return flacPictureBlockToPicture(data);
-        }
-
-        offset += blockLength;
-        if (isLast) break;
-    }
-    return null;
+    return parseFlacBlocks(file, (blockType, data) => {
+        if (blockType === 6) return flacPictureBlockToPicture(data);
+    });
 }
 
 async function extractWavId3Picture(file) {
-    const data = await extractRiffChunk(file, ['ID3 ']);
-    if (!data || chunkId(data, 0, 3) !== 'ID3') return null;
-    return readPictureFromTags(new File([data], `${file.name}.id3`, { type: 'audio/mpeg' }));
+    const id3File = await extractWavId3Data(file);
+    return id3File ? readPictureFromTags(id3File) : null;
 }
 
-function chunkId(bytes, offset, length = 4) {
-    let id = '';
-    for (let i = 0; i < length; i++) id += String.fromCharCode(bytes[offset + i]);
-    return id;
-}
 
 async function imageUrlToPalette(url) {
     const img = await new Promise((resolve, reject) => {
