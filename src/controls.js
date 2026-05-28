@@ -27,6 +27,46 @@ const els = {};
 let lyricsLineElements = [];
 let currentActiveLyricsEl = null;
 
+const coverCache = new Map(); // path → blob URL string (null = no cover)
+
+const MIME_TYPES = {
+    mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
+    flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/mp4',
+    wma: 'audio/x-ms-wma', webm: 'audio/webm', opus: 'audio/opus'
+};
+
+async function readFileAsAudioFile(path, name) {
+    const buffer = await window.electronAPI.readFile(path);
+    const ext = name.split('.').pop().toLowerCase();
+    const blob = new Blob([buffer], { type: MIME_TYPES[ext] || 'audio/mpeg' });
+    return new File([blob], name, { type: blob.type });
+}
+
+async function getItemCoverUrl(item) {
+    if (!item.path) return null;
+    const cached = coverCache.get(item.path);
+    if (cached !== undefined) return cached;
+    try {
+        const file = await readFileAsAudioFile(item.path, item.name);
+        const picture = await readEmbeddedPicture(file);
+        const url = pictureToImageUrl(picture);
+        coverCache.set(item.path, url || null);
+        return url || null;
+    } catch (_) {
+        coverCache.set(item.path, null);
+        return null;
+    }
+}
+
+function loadItemCover(imgEl, item) {
+    getItemCoverUrl(item).then(url => {
+        if (url && imgEl.isConnected) {
+            imgEl.src = url;
+            imgEl.classList.add('loaded');
+        }
+    }).catch(() => {});
+}
+
 export function getState() {
     return state;
 }
@@ -154,14 +194,27 @@ function handleProgressMouseLeave() {
     els.progressTimeTip.textContent = '';
 }
 
-async function loadCoverArt(file) {
+async function loadCoverArt(file, filePath) {
     if (state.coverUrl) URL.revokeObjectURL(state.coverUrl);
     state.coverUrl = null;
     els.coverImg.removeAttribute('src');
     els.coverArt.classList.remove('has-cover');
 
+    if (filePath) {
+        const cached = coverCache.get(filePath);
+        if (cached !== undefined) {
+            if (cached) {
+                state.coverUrl = cached;
+                els.coverImg.src = state.coverUrl;
+                els.coverArt.classList.add('has-cover');
+            }
+            return;
+        }
+    }
+
     const picture = await readEmbeddedPicture(file);
     state.coverUrl = pictureToImageUrl(picture);
+    if (filePath) coverCache.set(filePath, state.coverUrl || null);
     if (!state.coverUrl) return;
     els.coverImg.src = state.coverUrl;
     els.coverArt.classList.add('has-cover');
@@ -268,7 +321,7 @@ export async function cleanupAudio() {
     resetRenderer();
 }
 
-async function loadFile(file) {
+async function loadFile(file, filePath) {
     await cleanupAudio();
     await new Promise(r => setTimeout(r, 50));
 
@@ -297,7 +350,7 @@ async function loadFile(file) {
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
 
         loadEmbeddedLyrics(file).catch(() => renderLyrics());
-        loadCoverArt(file).catch(() => {});
+        loadCoverArt(file, filePath).catch(() => {});
         loadCoverPalette(file).then((palette) => {
             if (palette) state.coverPalette = palette;
         });
@@ -471,6 +524,13 @@ function renderPlaylist() {
         infoDiv.appendChild(nameDiv);
         infoDiv.appendChild(metaDiv);
 
+        const coverDiv = document.createElement('div');
+        coverDiv.className = 'playlist-item-cover';
+        const coverImg = document.createElement('img');
+        coverImg.className = 'playlist-item-cover-img';
+        coverDiv.appendChild(coverImg);
+
+        itemDiv.appendChild(coverDiv);
         itemDiv.appendChild(indexSpan);
         itemDiv.appendChild(infoDiv);
 
@@ -478,6 +538,7 @@ function renderPlaylist() {
             playPlaylistItem(index);
         });
 
+        loadItemCover(coverImg, item);
         els.playlistContent.appendChild(itemDiv);
     });
 }
@@ -528,17 +589,8 @@ async function playPlaylistItem(index) {
     if (!item) return;
 
     try {
-        const buffer = await window.electronAPI.readFile(item.path);
-        const ext = item.name.split('.').pop().toLowerCase();
-        const mimeTypes = {
-            mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
-            flac: 'audio/flac', aac: 'audio/aac', m4a: 'audio/mp4',
-            wma: 'audio/x-ms-wma', webm: 'audio/webm', opus: 'audio/opus'
-        };
-        const blob = new Blob([buffer], { type: mimeTypes[ext] || 'audio/mpeg' });
-        const file = new File([blob], item.name, { type: blob.type });
-        
-        await loadFile(file);
+        const file = await readFileAsAudioFile(item.path, item.name);
+        await loadFile(file, item.path);
         renderPlaylist();
         renderHomeList();
     } catch (error) {
@@ -606,6 +658,13 @@ function renderHomeList() {
         infoDiv.appendChild(nameDiv);
         infoDiv.appendChild(metaDiv);
 
+        const coverDiv = document.createElement('div');
+        coverDiv.className = 'home-item-cover';
+        const coverImg = document.createElement('img');
+        coverImg.className = 'home-item-cover-img';
+        coverDiv.appendChild(coverImg);
+
+        itemDiv.appendChild(coverDiv);
         itemDiv.appendChild(indexSpan);
         itemDiv.appendChild(infoDiv);
 
@@ -613,6 +672,7 @@ function renderHomeList() {
             playPlaylistItem(index);
         });
 
+        loadItemCover(coverImg, item);
         els.homeList.appendChild(itemDiv);
     });
 }
