@@ -22,6 +22,12 @@
         </div>
     </div>
 
+    <button class="viz-switcher-btn" id="viz-switcher-btn" title="可视化风格">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 20h4V10H4v10zm6 0h4V4h-4v16zm6 0h4v-8h-4v8z"/>
+        </svg>
+    </button>
+
     <canvas id="canvas"></canvas>
 
     <div class="cover-art" id="cover-art">
@@ -104,6 +110,54 @@
                 <div class="settings-row">
                     <button class="settings-option" id="settings-lrc-toggle">开启</button>
                 </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">播放速度</div>
+                <div class="settings-row">
+                    <button class="settings-option" data-rate="0.5">0.5x</button>
+                    <button class="settings-option" data-rate="0.75">0.75x</button>
+                    <button class="settings-option" data-rate="1">1x</button>
+                    <button class="settings-option" data-rate="1.25">1.25x</button>
+                    <button class="settings-option" data-rate="1.5">1.5x</button>
+                    <button class="settings-option" data-rate="2">2x</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">曲目切换淡入淡出</div>
+                <div class="settings-row">
+                    <button class="settings-option" data-crossfade="0">关闭</button>
+                    <button class="settings-option" data-crossfade="2">2秒</button>
+                    <button class="settings-option" data-crossfade="3">3秒</button>
+                    <button class="settings-option" data-crossfade="5">5秒</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">曲目间自动暂停</div>
+                <div class="settings-row">
+                    <button class="settings-option" data-pause="0">关闭</button>
+                    <button class="settings-option" data-pause="3">3秒</button>
+                    <button class="settings-option" data-pause="5">5秒</button>
+                    <button class="settings-option" data-pause="10">10秒</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="viz-switcher-panel" id="viz-switcher-panel">
+        <div class="viz-switcher-header">
+            <h3>可视化风格</h3>
+            <button class="viz-switcher-close">&times;</button>
+        </div>
+        <div class="viz-switcher-content">
+            <div class="viz-switcher-options">
+                <button class="viz-switcher-option" data-viz="radial">
+                    <span class="viz-option-icon">◎</span>
+                    <span class="viz-option-label">径向频谱</span>
+                </button>
+                <button class="viz-switcher-option" data-viz="wave">
+                    <span class="viz-option-icon">〜</span>
+                    <span class="viz-option-label">波浪线条</span>
+                </button>
             </div>
         </div>
     </div>

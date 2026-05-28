@@ -535,3 +535,72 @@
         /* ─── Fullscreen Mode ─── */
         body.fullscreen .title-bar { display: none; }
         body.fullscreen .cover-art { top: 18px; }
+        body.fullscreen .viz-switcher-btn { top: 12px; }
+
+        /* ─── Viz Switcher Button ─── */
+        .viz-switcher-btn {
+            position: fixed; top: 40px; right: 16px; z-index: 25;
+            width: 40px; height: 40px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(10, 10, 25, 0.62);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            color: rgba(255,255,255,0.6); cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        .viz-switcher-btn svg { width: 20px; height: 20px; }
+        .viz-switcher-btn:hover {
+            background: rgba(79, 172, 254, 0.15);
+            border-color: rgba(79, 172, 254, 0.4); color: #4facfe;
+        }
+
+        /* ─── Viz Switcher Panel ─── */
+        .viz-switcher-panel {
+            position: fixed; width: min(320px, 80vw); z-index: 35;
+            background: rgba(10, 10, 25, 0.92);
+            backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+            border-radius: 18px; border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 22px 70px rgba(0,0,0,0.44);
+            opacity: 0; visibility: hidden;
+            transform: translateY(-10px) scale(0.95);
+            transition: opacity 0.3s, visibility 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: var(--font-main);
+        }
+        .viz-switcher-panel.visible {
+            opacity: 1; visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+        .viz-switcher-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .viz-switcher-header h3 {
+            color: rgba(255,255,255,0.84); font-size: 1rem; font-weight: 500;
+        }
+        .viz-switcher-close {
+            background: none; border: none;
+            color: rgba(255,255,255,0.5); font-size: 1.5rem;
+            cursor: pointer; padding: 0; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 50%; transition: background 0.2s;
+        }
+        .viz-switcher-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .viz-switcher-content { padding: 16px 20px; }
+        .viz-switcher-options { display: flex; gap: 12px; }
+        .viz-switcher-option {
+            flex: 1; padding: 20px 12px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04);
+            color: rgba(255,255,255,0.7); font-size: 0.85rem;
+            cursor: pointer; transition: all 0.2s;
+            font-family: var(--font-main);
+            display: flex; flex-direction: column; align-items: center;
+            gap: 8px; text-align: center;
+        }
+        .viz-switcher-option:hover { background: rgba(255,255,255,0.08); }
+        .viz-switcher-option.active {
+            background: rgba(79, 172, 254, 0.15);
+            border-color: rgba(79, 172, 254, 0.5); color: #4facfe;
+        }
+        .viz-option-icon { font-size: 1.6rem; line-height: 1; }
+        .viz-option-label { font-size: 0.8rem; }

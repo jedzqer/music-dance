@@ -1,5 +1,6 @@
 import { init, getState, getEls, updateProgressBar, showHomePage } from './controls.js';
-import { draw } from './renderer.js';
+import { draw as drawRadial } from './renderer.js';
+import { draw as drawWave } from './waveRenderer.js';
 import { initGlowLayer, resizeGlowLayer } from './glowlayer.js';
 
 let W, H, cx, cy;
@@ -23,7 +24,11 @@ function loop(ts) {
     }
     if (!s.isDraggingProgress) updateProgressBar();
 
-    draw(els.ctx, W, H, cx, cy, s.frequencyData, s.coverPalette, ts * 0.001);
+    if (s.vizStyle === 'wave') {
+        drawWave(els.ctx, W, H, cx, cy, s.frequencyData, s.coverPalette, ts * 0.001);
+    } else {
+        drawRadial(els.ctx, W, H, cx, cy, s.frequencyData, s.coverPalette, ts * 0.001);
+    }
 }
 
 init();

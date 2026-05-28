@@ -24,7 +24,19 @@ const state = {
     shuffleOn: false,
     shuffleHistory: [],
     fftSize: 1024,
-    autoLoadLrc: true
+    autoLoadLrc: true,
+    playbackRate: 1,
+    crossfadeDuration: 0,       // 0=关闭, 2/3/5 秒
+    autoPauseDuration: 0,       // 0=关闭, 3/5/10 秒
+    vizStyle: 'radial',         // 'radial' | 'wave'
+    _crossfadeActive: false,
+    _secondaryElement: null,
+    _secondarySource: null,
+    _gainPrimary: null,
+    _gainSecondary: null,
+    _crossfadeRaf: null,
+    _autoPauseTimeout: null,
+    _nextTrackPending: false
 };
 
 const els = {};
@@ -154,6 +166,8 @@ export function init() {
     els.settingsClose = document.getElementById('settings-close');
     els.settingsContent = document.getElementById('settings-content');
     els.homeSearch = document.getElementById('home-search');
+    els.vizSwitcherBtn = document.getElementById('viz-switcher-btn');
+    els.vizSwitcherPanel = document.getElementById('viz-switcher-panel');
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
@@ -178,6 +192,9 @@ export function init() {
     els.settingsClose.addEventListener('click', () => toggleSettingsPanel(false));
     els.settingsContent.addEventListener('click', handleSettingsClick);
     els.homeSearch.addEventListener('input', handleHomeSearch);
+    els.vizSwitcherBtn?.addEventListener('click', () => toggleVizSwitcherPanel());
+    els.vizSwitcherPanel?.querySelector('.viz-switcher-close')?.addEventListener('click', () => toggleVizSwitcherPanel(false));
+    els.vizSwitcherPanel?.addEventListener('click', handleVizSwitcherClick);
     document.addEventListener('click', handleOutsideClick);
 
     restoreVolume();
@@ -349,7 +366,12 @@ async function loadEmbeddedLyrics(file) {
 }
 
 export async function cleanupAudio() {
+    cancelCrossfade();
+    cancelAutoPause();
+    cleanupSecondaryElement();
     if (state.audioElement) {
+        state.audioElement.removeEventListener('ended', handleTrackEnded);
+        state.audioElement.removeEventListener('timeupdate', handleTimeUpdate);
         state.audioElement.pause();
         state.audioElement.src = '';
         state.audioElement.load();
@@ -361,6 +383,8 @@ export async function cleanupAudio() {
     state.analyser = null;
     state.audioElement = null;
     state.frequencyData = null;
+    state._gainPrimary = null;
+    state._gainSecondary = null;
     state.isPlaying = false;
     state.parsedLyrics = null;
     state.currentLyricsIndex = -1;
@@ -397,18 +421,23 @@ async function loadFile(file, filePath) {
         state.analyser.smoothingTimeConstant = 0.72;
         state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
 
+        // 音频图：gainPrimary → analyser → destination（analyser 自动混合多路输入）
+        state._gainPrimary = state.audioContext.createGain();
+        state._gainPrimary.gain.value = 1;
+        state._gainPrimary.connect(state.analyser);
+        state.analyser.connect(state.audioContext.destination);
+
         const url = URL.createObjectURL(file);
         state.audioBlobUrl = url;
         state.audioElement = new Audio(url);
         state.audioElement.volume = els.volumeSlider.value / 100;
+        state.audioElement.playbackRate = state.playbackRate;
 
         const trackSource = state.audioContext.createMediaElementSource(state.audioElement);
-        trackSource.connect(state.analyser);
-        state.analyser.connect(state.audioContext.destination);
+        trackSource.connect(state._gainPrimary);
 
-        state.audioElement.addEventListener('ended', () => {
-            handleTrackEnded();
-        });
+        state.audioElement.addEventListener('ended', handleTrackEnded);
+        state.audioElement.addEventListener('timeupdate', handleTimeUpdate);
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
 
@@ -466,7 +495,9 @@ function handlePlayPause() {
 }
 
 function handleVolume() {
-    if (state.audioElement) state.audioElement.volume = els.volumeSlider.value / 100;
+    const vol = els.volumeSlider.value / 100;
+    if (state.audioElement) state.audioElement.volume = vol;
+    if (state._secondaryElement) state._secondaryElement.volume = vol;
     if (window.electronAPI) {
         window.electronAPI.saveVolume(parseInt(els.volumeSlider.value)).catch(() => {});
     }
@@ -673,6 +704,8 @@ async function playPlaylistItem(index) {
 }
 
 async function handlePrevious() {
+    cancelCrossfade();
+    cancelAutoPause();
     if (state.playlist.isEmpty()) return;
     const idx = getPrevTrackIndex();
     if (idx < 0) return;
@@ -681,6 +714,8 @@ async function handlePrevious() {
 }
 
 async function handleNext() {
+    cancelCrossfade();
+    cancelAutoPause();
     if (state.playlist.isEmpty()) return;
     const idx = getNextTrackIndex();
     if (idx < 0) return;
@@ -794,6 +829,9 @@ function getPrevTrackIndex() {
 }
 
 function handleTrackEnded() {
+    // crossfade 进行中时忽略 ended 事件（旧 primary 被提前暂停时可能意外触发）
+    if (state._crossfadeActive || state._secondaryElement) return;
+
     const idx = getNextTrackIndex();
     if (idx < 0) {
         state.isPlaying = false;
@@ -801,8 +839,180 @@ function handleTrackEnded() {
         renderHomeList();
         return;
     }
+    // 自动暂停（仅在未启用 crossfade 时生效）
+    if (state.autoPauseDuration > 0 && state.crossfadeDuration <= 0) {
+        state.isPlaying = false;
+        setPlayIcon(false);
+        state._autoPauseTimeout = setTimeout(() => {
+            state._autoPauseTimeout = null;
+            state.playlist.setCurrentIndex(idx);
+            playPlaylistItem(idx);
+        }, state.autoPauseDuration * 1000);
+        return;
+    }
     state.playlist.setCurrentIndex(idx);
     playPlaylistItem(idx);
+}
+
+function cancelAutoPause() {
+    if (state._autoPauseTimeout) {
+        clearTimeout(state._autoPauseTimeout);
+        state._autoPauseTimeout = null;
+    }
+}
+
+// ─── Crossfade ───
+
+function handleTimeUpdate() {
+    if (state._crossfadeActive || state.crossfadeDuration <= 0) return;
+    if (state.loopMode === 'one') return;
+    const el = state.audioElement;
+    if (!el || !el.duration || isNaN(el.duration)) return;
+    const remaining = el.duration - el.currentTime;
+    if (remaining <= state.crossfadeDuration && remaining > 0) {
+        startCrossfade();
+    }
+}
+
+async function startCrossfade() {
+    if (state._crossfadeActive) return;
+    const nextIdx = getNextTrackIndex();
+    if (nextIdx < 0) return;
+    const nextItem = state.playlist.items[nextIdx];
+    if (!nextItem) return;
+
+    state._crossfadeActive = true;
+    // 清理旧的 secondary 资源（不重置 _crossfadeActive）
+    if (state._crossfadeRaf) {
+        cancelAnimationFrame(state._crossfadeRaf);
+        state._crossfadeRaf = null;
+    }
+    cleanupSecondaryElement();
+    if (state._gainPrimary) state._gainPrimary.gain.value = 1;
+
+    // 记录意图开始时间（在异步读取文件之前），用于补偿文件读取延迟
+    const intendedStartTime = state.audioContext.currentTime;
+
+    try {
+        const file = await readFileAsAudioFile(nextItem.path, nextItem.name);
+        const url = URL.createObjectURL(file);
+
+        state._secondaryElement = new Audio(url);
+        state._secondaryElement.volume = els.volumeSlider.value / 100;
+        state._secondaryElement.playbackRate = state.playbackRate;
+        state._secondarySource = state.audioContext.createMediaElementSource(state._secondaryElement);
+        state._gainSecondary = state.audioContext.createGain();
+        state._gainSecondary.gain.value = 0;
+        state._secondarySource.connect(state._gainSecondary);
+        state._gainSecondary.connect(state.analyser);
+
+        await state._secondaryElement.play();
+
+        const duration = state.crossfadeDuration;
+        const startTime = intendedStartTime;
+
+        const animate = () => {
+            if (!state._crossfadeActive) return;
+            const elapsed = state.audioContext.currentTime - startTime;
+            const progress = Math.min(Math.max(elapsed / duration, 0), 1);
+            if (state._gainPrimary) state._gainPrimary.gain.value = 1 - progress;
+            if (state._gainSecondary) state._gainSecondary.gain.value = progress;
+            if (progress < 1) {
+                state._crossfadeRaf = requestAnimationFrame(animate);
+            } else {
+                completeCrossfade(nextIdx, file, nextItem);
+            }
+        };
+        state._crossfadeRaf = requestAnimationFrame(animate);
+    } catch (err) {
+        console.error('Crossfade 失败:', err);
+        cancelCrossfade();
+        // 文件读取失败且旧 primary 已结束时，手动推进到下一曲
+        if (state.audioElement && state.audioElement.ended) {
+            const idx = getNextTrackIndex();
+            if (idx >= 0) {
+                state.playlist.setCurrentIndex(idx);
+                playPlaylistItem(idx);
+            }
+        }
+    }
+}
+
+function completeCrossfade(nextIdx, file, item) {
+    state._crossfadeActive = false;
+    if (state._crossfadeRaf) {
+        cancelAnimationFrame(state._crossfadeRaf);
+        state._crossfadeRaf = null;
+    }
+
+    // 清理旧 primary
+    if (state.audioElement) {
+        state.audioElement.removeEventListener('ended', handleTrackEnded);
+        state.audioElement.removeEventListener('timeupdate', handleTimeUpdate);
+        state.audioElement.pause();
+        state.audioElement.src = '';
+        state.audioElement.load();
+    }
+    if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
+
+    // secondary 升级为 primary
+    state.audioElement = state._secondaryElement;
+    state.audioBlobUrl = URL.createObjectURL(file);
+    state._gainPrimary = state._gainSecondary;
+    state._secondaryElement = null;
+    state._secondarySource = null;
+    state._gainSecondary = null;
+
+    state.audioElement.addEventListener('ended', handleTrackEnded);
+    state.audioElement.addEventListener('timeupdate', handleTimeUpdate);
+
+    state.playlist.setCurrentIndex(nextIdx);
+    els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
+
+    // 更新歌词和封面
+    loadEmbeddedLyrics(file).then(embeddedLoaded => {
+        if (!embeddedLoaded && state.autoLoadLrc && item.path) {
+            return tryLoadExternalLrc(item.path);
+        }
+        return embeddedLoaded;
+    }).then(anyLoaded => {
+        if (!anyLoaded) renderLyrics();
+    }).catch(() => renderLyrics());
+    loadCoverArt(file, item.path).then((picture) => {
+        return loadCoverPalette(file, picture);
+    }).then((palette) => {
+        if (palette) state.coverPalette = palette;
+    }).catch(() => {});
+
+    renderPlaylist();
+    renderHomeList();
+}
+
+function cancelCrossfade() {
+    state._crossfadeActive = false;
+    if (state._crossfadeRaf) {
+        cancelAnimationFrame(state._crossfadeRaf);
+        state._crossfadeRaf = null;
+    }
+    cleanupSecondaryElement();
+    if (state._gainPrimary) state._gainPrimary.gain.value = 1;
+}
+
+function cleanupSecondaryElement() {
+    if (state._secondaryElement) {
+        state._secondaryElement.pause();
+        state._secondaryElement.src = '';
+        state._secondaryElement.load();
+        state._secondaryElement = null;
+    }
+    if (state._secondarySource) {
+        state._secondarySource.disconnect();
+        state._secondarySource = null;
+    }
+    if (state._gainSecondary) {
+        state._gainSecondary.disconnect();
+        state._gainSecondary = null;
+    }
 }
 
 function handleShuffleToggle() {
@@ -837,7 +1047,11 @@ function persistSettings() {
         loopMode: state.loopMode,
         shuffleOn: state.shuffleOn,
         fftSize: state.fftSize,
-        autoLoadLrc: state.autoLoadLrc
+        autoLoadLrc: state.autoLoadLrc,
+        playbackRate: state.playbackRate,
+        crossfadeDuration: state.crossfadeDuration,
+        autoPauseDuration: state.autoPauseDuration,
+        vizStyle: state.vizStyle
     }).catch(() => {});
 }
 
@@ -849,6 +1063,10 @@ async function restoreSettings() {
         if (typeof settings.shuffleOn === 'boolean') state.shuffleOn = settings.shuffleOn;
         if (settings.fftSize) state.fftSize = settings.fftSize;
         if (typeof settings.autoLoadLrc === 'boolean') state.autoLoadLrc = settings.autoLoadLrc;
+        if (settings.playbackRate) state.playbackRate = settings.playbackRate;
+        if (settings.crossfadeDuration != null) state.crossfadeDuration = settings.crossfadeDuration;
+        if (settings.autoPauseDuration != null) state.autoPauseDuration = settings.autoPauseDuration;
+        if (settings.vizStyle) state.vizStyle = settings.vizStyle;
         updateLoopBtnIcon();
         els.shuffleBtn.classList.toggle('active-mode', state.shuffleOn);
     } catch (_) {}
@@ -885,6 +1103,46 @@ function positionSettingsAboveButton() {
     els.settingsPanel.style.width = panelWidth + 'px';
 }
 
+function toggleVizSwitcherPanel(show) {
+    const panel = els.vizSwitcherPanel;
+    if (!panel) return;
+    const shouldShow = show === undefined ? !panel.classList.contains('visible') : show;
+    if (shouldShow) {
+        toggleSettingsPanel(false);
+        togglePlaylistPanel(false);
+        positionVizSwitcherPanel();
+        syncVizSwitcherUI();
+        panel.classList.add('visible');
+    } else {
+        panel.classList.remove('visible');
+    }
+}
+
+function positionVizSwitcherPanel() {
+    const btnRect = els.vizSwitcherBtn.getBoundingClientRect();
+    const panelWidth = Math.min(320, window.innerWidth * 0.8);
+    const gap = 10;
+    let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
+    left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
+    els.vizSwitcherPanel.style.top = (btnRect.bottom + gap) + 'px';
+    els.vizSwitcherPanel.style.left = left + 'px';
+    els.vizSwitcherPanel.style.width = panelWidth + 'px';
+}
+
+function syncVizSwitcherUI() {
+    document.querySelectorAll('[data-viz]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.viz === state.vizStyle);
+    });
+}
+
+function handleVizSwitcherClick(e) {
+    const option = e.target.closest('[data-viz]');
+    if (!option) return;
+    state.vizStyle = option.dataset.viz;
+    syncVizSwitcherUI();
+    persistSettings();
+}
+
 function syncSettingsUI() {
     document.querySelectorAll('[data-loop]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.loop === state.loopMode);
@@ -896,6 +1154,15 @@ function syncSettingsUI() {
     });
     const lrcToggle = document.getElementById('settings-lrc-toggle');
     if (lrcToggle) lrcToggle.textContent = state.autoLoadLrc ? '开启' : '关闭';
+    document.querySelectorAll('[data-rate]').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.rate) === state.playbackRate);
+    });
+    document.querySelectorAll('[data-crossfade]').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.crossfade) === state.crossfadeDuration);
+    });
+    document.querySelectorAll('[data-pause]').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.pause) === state.autoPauseDuration);
+    });
 }
 
 function handleSettingsClick(e) {
@@ -912,6 +1179,15 @@ function handleSettingsClick(e) {
         state.fftSize = parseInt(option.dataset.fft);
     } else if (option.id === 'settings-lrc-toggle') {
         state.autoLoadLrc = !state.autoLoadLrc;
+    } else if (option.dataset.rate) {
+        state.playbackRate = parseFloat(option.dataset.rate);
+        if (state.audioElement) state.audioElement.playbackRate = state.playbackRate;
+    } else if (option.dataset.crossfade) {
+        state.crossfadeDuration = parseInt(option.dataset.crossfade);
+        if (state.crossfadeDuration > 0) state.autoPauseDuration = 0; // 互斥
+    } else if (option.dataset.pause) {
+        state.autoPauseDuration = parseInt(option.dataset.pause);
+        if (state.autoPauseDuration > 0) state.crossfadeDuration = 0; // 互斥
     }
     syncSettingsUI();
     persistSettings();
@@ -963,6 +1239,10 @@ function handleOutsideClick(e) {
     if (els.playlistPanel.classList.contains('visible') &&
         !els.playlistPanel.contains(e.target) && !els.playlistBtn.contains(e.target)) {
         togglePlaylistPanel(false);
+    }
+    if (els.vizSwitcherPanel?.classList.contains('visible') &&
+        !els.vizSwitcherPanel.contains(e.target) && !els.vizSwitcherBtn.contains(e.target)) {
+        toggleVizSwitcherPanel(false);
     }
 }
 
