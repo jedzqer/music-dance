@@ -18,8 +18,8 @@ async function readPictureFromTags(file) {
     return readJsmediatags(file, tag => tag.tags?.picture || null);
 }
 
-export async function loadCoverPalette(file) {
-    const picture = await readEmbeddedPicture(file);
+export async function loadCoverPalette(file, picture) {
+    if (!picture) picture = await readEmbeddedPicture(file);
     const url = pictureToImageUrl(picture);
     if (!url) return null;
     try {

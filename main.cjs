@@ -163,6 +163,138 @@ ipcMain.handle('read-file', async (event, filePath) => {
   }
 });
 
+// 从文件头部提取封面图片（只读前2MB，不加载整个文件）
+function readSyncSafeInt(buf, off) {
+  return (buf[off] << 21) | (buf[off + 1] << 14) | (buf[off + 2] << 7) | buf[off + 3];
+}
+
+function readInt32BE(buf, off) {
+  return ((buf[off] << 24) | (buf[off + 1] << 16) | (buf[off + 2] << 8) | buf[off + 3]) >>> 0;
+}
+
+function readInt32LE(buf, off) {
+  return (buf[off] | (buf[off + 1] << 8) | (buf[off + 2] << 16) | (buf[off + 3] << 24)) >>> 0;
+}
+
+function extractId3v2Cover(buf) {
+  if (buf[0] !== 0x49 || buf[1] !== 0x44 || buf[2] !== 0x33) return null; // "ID3"
+  const version = buf[3]; // 3 or 4
+  const tagSize = readSyncSafeInt(buf, 6);
+  let pos = 10;
+  const end = Math.min(buf.length, 10 + tagSize);
+
+  while (pos + 10 <= end) {
+    const frameId = String.fromCharCode(buf[pos], buf[pos + 1], buf[pos + 2], buf[pos + 3]);
+    if (/^\x00+$/.test(frameId)) break;
+    const frameSize = version === 4 ? readSyncSafeInt(buf, pos + 4) : readInt32BE(buf, pos + 4);
+    const frameStart = pos + 10;
+    const frameEnd = frameStart + frameSize;
+    if (frameSize <= 0 || frameEnd > end) break;
+
+    if (frameId === 'APIC') {
+      let fp = frameStart;
+      const encoding = buf[fp++];
+      // Skip MIME type (null-terminated)
+      let mimeStart = fp;
+      while (fp < frameEnd && buf[fp] !== 0) fp++;
+      const mime = buf.slice(mimeStart, fp).toString('latin1');
+      fp++; // skip null
+      fp++; // skip picture type
+      // Skip description (null-terminated, encoding-dependent)
+      if (encoding === 1 || encoding === 2) {
+        while (fp + 1 < frameEnd && !(buf[fp] === 0 && buf[fp + 1] === 0)) fp += 2;
+        fp += 2;
+      } else {
+        while (fp < frameEnd && buf[fp] !== 0) fp++;
+        fp++;
+      }
+      if (fp < frameEnd) {
+        const imgData = buf.slice(fp, frameEnd);
+        return { mime: mime || 'image/jpeg', data: imgData };
+      }
+    }
+    pos = frameEnd;
+  }
+  return null;
+}
+
+function extractFlacCover(buf) {
+  // Check fLaC signature
+  if (buf[0] !== 0x66 || buf[1] !== 0x4c || buf[2] !== 0x61 || buf[3] !== 0x43) return null;
+  let offset = 4;
+  while (offset + 4 <= buf.length) {
+    const isLast = (buf[offset] & 0x80) !== 0;
+    const blockType = buf[offset] & 0x7f;
+    const blockLength = (buf[offset + 1] << 16) | (buf[offset + 2] << 8) | buf[offset + 3];
+    offset += 4;
+    if (offset + blockLength > buf.length) break;
+
+    if (blockType === 6) { // Picture block
+      let pos = offset;
+      const picType = readInt32BE(buf, pos); pos += 4;
+      const mimeLen = readInt32BE(buf, pos); pos += 4;
+      if (pos + mimeLen > buf.length) break;
+      const mime = buf.slice(pos, pos + mimeLen).toString('utf-8');
+      pos += mimeLen;
+      const descLen = readInt32BE(buf, pos); pos += 4;
+      pos += descLen + 16; // skip description + 4 uint32s (width, height, depth, colors)
+      if (pos + 4 > buf.length) break;
+      const dataLen = readInt32BE(buf, pos); pos += 4;
+      if (pos + dataLen <= buf.length) {
+        return { mime: mime || 'image/jpeg', data: buf.slice(pos, pos + dataLen) };
+      }
+    }
+
+    offset += blockLength;
+    if (isLast) break;
+  }
+  return null;
+}
+
+function extractWavCover(buf) {
+  if (String.fromCharCode(buf[0], buf[1], buf[2], buf[3]) !== 'RIFF') return null;
+  if (String.fromCharCode(buf[8], buf[9], buf[10], buf[11]) !== 'WAVE') return null;
+  let offset = 12;
+  while (offset + 8 <= buf.length) {
+    const chunkId = String.fromCharCode(buf[offset], buf[offset + 1], buf[offset + 2], buf[offset + 3]);
+    const chunkSize = readInt32LE(buf, offset + 4);
+    const dataOffset = offset + 8;
+    if (dataOffset + chunkSize > buf.length) break;
+    if (chunkId === 'ID3 ' || chunkId === 'id3 ') {
+      const id3Data = buf.slice(dataOffset, dataOffset + chunkSize);
+      const cover = extractId3v2Cover(id3Data);
+      if (cover) return cover;
+    }
+    offset = dataOffset + chunkSize + (chunkSize % 2);
+  }
+  return null;
+}
+
+ipcMain.handle('extract-cover', async (event, filePath) => {
+  try {
+    const READ_SIZE = 2 * 1024 * 1024; // 2MB — metadata + cover art are at the start
+    const fh = await fs.promises.open(filePath, 'r');
+    try {
+      const { buffer } = await fh.read(Buffer.alloc(READ_SIZE), 0, READ_SIZE, 0);
+      const ext = path.extname(filePath).toLowerCase();
+      let cover = null;
+      if (ext === '.flac') {
+        cover = extractFlacCover(buffer);
+      } else if (ext === '.wav') {
+        cover = extractWavCover(buffer) || extractId3v2Cover(buffer);
+      } else {
+        cover = extractId3v2Cover(buffer);
+      }
+      if (!cover) return null;
+      return `data:${cover.mime};base64,${cover.data.toString('base64')}`;
+    } finally {
+      await fh.close();
+    }
+  } catch (_) {
+    return null;
+  }
+});
+
 ipcMain.on('window-minimize', () => {
   mainWindow?.minimize();
 });

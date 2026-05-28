@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVolume: () => ipcRenderer.invoke('get-volume'),
   saveVolume: (volume) => ipcRenderer.invoke('save-volume', volume),
   readFile: (filePath) => ipcRenderer.invoke('read-file', filePath),
+  extractCover: (filePath) => ipcRenderer.invoke('extract-cover', filePath),
   windowMinimize: () => ipcRenderer.send('window-minimize'),
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),

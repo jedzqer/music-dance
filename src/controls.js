@@ -47,6 +47,13 @@ async function getItemCoverUrl(item) {
     const cached = coverCache.get(item.path);
     if (cached !== undefined) return cached;
     try {
+        // Use main process to extract cover (reads only file headers, not entire file)
+        if (window.electronAPI?.extractCover) {
+            const dataUrl = await window.electronAPI.extractCover(item.path);
+            coverCache.set(item.path, dataUrl || null);
+            return dataUrl || null;
+        }
+        // Fallback for browser mode
         const file = await readFileAsAudioFile(item.path, item.name);
         const picture = await readEmbeddedPicture(file);
         const url = pictureToImageUrl(picture);
@@ -58,13 +65,44 @@ async function getItemCoverUrl(item) {
     }
 }
 
+let coverObserver = null;
+const COVER_CONCURRENCY = 3;
+let coverInFlight = 0;
+const coverQueue = [];
+
+function processCoverQueue() {
+    while (coverInFlight < COVER_CONCURRENCY && coverQueue.length > 0) {
+        const { imgEl, item } = coverQueue.shift();
+        coverInFlight++;
+        getItemCoverUrl(item).then(url => {
+            if (url && imgEl.isConnected) {
+                imgEl.src = url;
+                imgEl.classList.add('loaded');
+            }
+        }).catch(() => {}).finally(() => {
+            coverInFlight--;
+            processCoverQueue();
+        });
+    }
+}
+
 function loadItemCover(imgEl, item) {
-    getItemCoverUrl(item).then(url => {
-        if (url && imgEl.isConnected) {
-            imgEl.src = url;
-            imgEl.classList.add('loaded');
-        }
-    }).catch(() => {});
+    if (!coverObserver) {
+        coverObserver = new IntersectionObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.isIntersecting) {
+                    coverObserver.unobserve(entry.target);
+                    const { _coverItem } = entry.target;
+                    if (_coverItem) {
+                        coverQueue.push({ imgEl: entry.target, item: _coverItem });
+                        processCoverQueue();
+                    }
+                }
+            }
+        }, { rootMargin: '200px' });
+    }
+    imgEl._coverItem = item;
+    coverObserver.observe(imgEl);
 }
 
 export function getState() {
@@ -148,6 +186,7 @@ export function updateProgressBar() {
     els.progressFill.style.height = '';
     els.progressThumb.style.left = `${pos}%`;
     els.progressThumb.style.bottom = '';
+    updateLyricsHighlight(state.audioElement.currentTime);
 }
 
 function getProgressFromEvent(e) {
@@ -208,16 +247,17 @@ async function loadCoverArt(file, filePath) {
                 els.coverImg.src = state.coverUrl;
                 els.coverArt.classList.add('has-cover');
             }
-            return;
+            return null;
         }
     }
 
     const picture = await readEmbeddedPicture(file);
     state.coverUrl = pictureToImageUrl(picture);
     if (filePath) coverCache.set(filePath, state.coverUrl || null);
-    if (!state.coverUrl) return;
+    if (!state.coverUrl) return picture;
     els.coverImg.src = state.coverUrl;
     els.coverArt.classList.add('has-cover');
+    return picture;
 }
 
 function renderLyrics() {
@@ -249,9 +289,12 @@ function renderLyrics() {
 
 function updateLyricsHighlight(currentTime) {
     if (!state.parsedLyrics || !state.parsedLyrics.isLRC) return;
-    let idx = -1;
-    for (let i = state.parsedLyrics.lines.length - 1; i >= 0; i--) {
-        if (state.parsedLyrics.lines[i].time <= currentTime) { idx = i; break; }
+    const lines = state.parsedLyrics.lines;
+    let lo = 0, hi = lines.length - 1, idx = -1;
+    while (lo <= hi) {
+        const mid = (lo + hi) >>> 1;
+        if (lines[mid].time <= currentTime) { idx = mid; lo = mid + 1; }
+        else hi = mid - 1;
     }
     if (idx === state.currentLyricsIndex) return;
     state.currentLyricsIndex = idx;
@@ -271,9 +314,6 @@ function applyLyrics(raw) {
     state.parsedLyrics = parseLyrics(raw);
     if (!state.parsedLyrics) return false;
     renderLyrics();
-    state.audioElement.addEventListener('timeupdate', () => {
-        updateLyricsHighlight(state.audioElement.currentTime);
-    });
     return true;
 }
 
@@ -350,10 +390,11 @@ async function loadFile(file, filePath) {
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
 
         loadEmbeddedLyrics(file).catch(() => renderLyrics());
-        loadCoverArt(file, filePath).catch(() => {});
-        loadCoverPalette(file).then((palette) => {
+        loadCoverArt(file, filePath).then((picture) => {
+            return loadCoverPalette(file, picture);
+        }).then((palette) => {
             if (palette) state.coverPalette = palette;
-        });
+        }).catch(() => {});
 
         await state.audioElement.play();
         state.isPlaying = true;

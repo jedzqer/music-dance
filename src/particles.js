@@ -51,8 +51,8 @@ export function updateParticles(globalIntensity, ctx) {
     for (let i = 0; i < particles.length; i++) {
         particles[i].draw(ctx);
     }
-    while (particles.length > MAX_PARTICLES) {
-        particles.shift();
+    if (particles.length > MAX_PARTICLES) {
+        particles.splice(0, particles.length - MAX_PARTICLES);
     }
 }
 
