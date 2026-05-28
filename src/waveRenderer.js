@@ -104,36 +104,25 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     for (let lineIdx = 0; lineIdx < NUM_LINES; lineIdx++) {
         const distFromCenter = Math.abs(lineIdx - 3);
         const sign = lineIdx < 3 ? -1 : (lineIdx === 3 ? 0 : 1);
-        const outerScale = 1 + distFromCenter * 0.3;
+        const outerScale = 1 + distFromCenter * 0.25;
+        const freqStart = Math.floor(bins * (0.02 + distFromCenter * 0.08));
+        const freqEnd = Math.min(bins, Math.floor(bins * (0.45 + distFromCenter * 0.12)));
+        const freqSpan = Math.max(1, freqEnd - freqStart);
 
         for (let seg = 0; seg < LINE_SEGMENTS; seg++) {
             const normalizedX = seg / (LINE_SEGMENTS - 1);
-            const centeredX = normalizedX - 0.5;
             const smoothIdx = lineIdx * LINE_SEGMENTS + seg;
 
-            // Decay existing displacement each frame
-            lineDisplacements[smoothIdx] *= 0.82;
+            lineDisplacements[smoothIdx] *= 0.55;
 
-            // Bass: center of line bulge — sharp attack, driven by instantaneous bass
-            const bassEnvelope = Math.exp(-centeredX * centeredX * 18);
-            const bassDisplace = bassAvg * bassEnvelope * sign * minDim * 0.12 * outerScale;
-
-            // High frequencies: outer portions
-            let highDisplace = 0;
+            let freqVal = 0;
             if (bins > 0) {
-                const highEnvelope = 1 - Math.exp(-centeredX * centeredX * 6);
-                const freqStart = Math.floor(bins * (0.15 + distFromCenter * 0.18));
-                const freqEnd = Math.min(bins, Math.floor(bins * (0.35 + distFromCenter * 0.2)));
-                const freqBinIndex = freqStart + Math.floor(normalizedX * (freqEnd - freqStart));
-                const highFreqVal = frequencyData[Math.min(freqBinIndex, bins - 1)] / 255;
-                highDisplace = highFreqVal * highEnvelope * (distFromCenter + 1) * 8 * outerScale;
+                const freqBinIndex = freqStart + Math.floor(normalizedX * freqSpan);
+                freqVal = frequencyData[Math.min(freqBinIndex, bins - 1)] / 255;
             }
 
-            // Beat ripple: sharp spike that fades quickly
-            const beatRipple = Math.sin(normalizedX * Math.PI * 4 + lastBeatTime * 5) * beatEnergy * 10;
-
-            // Add new energy on top of decayed state
-            lineDisplacements[smoothIdx] += (bassDisplace + highDisplace + beatRipple) * 0.35;
+            const displace = freqVal * sign * minDim * 0.16 * outerScale;
+            lineDisplacements[smoothIdx] += displace * 0.7;
         }
     }
 
@@ -222,8 +211,8 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         ctx.lineWidth = lineWidth;
         ctx.shadowBlur = shadowBlur;
         ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.5)`;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
+        ctx.lineCap = 'butt';
+        ctx.lineJoin = 'miter';
         ctx.stroke();
         ctx.restore();
     }
