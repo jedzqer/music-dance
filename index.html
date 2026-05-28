@@ -28,16 +28,33 @@
         <img id="cover-img" alt="专辑图">
     </div>
 
-    <div class="overlay" id="overlay">
-        <div class="upload-panel">
-            <h1>♫ 音乐可视化 ♫</h1>
-            <p class="subtitle">选择一首音乐，感受节奏的视觉魅力</p>
-            <div class="button-group">
-                <label class="upload-btn" for="file-input">打开音乐文件</label>
-                <button class="upload-btn folder-btn" id="folder-btn">打开音乐文件夹</button>
+    <div class="home-page" id="home-page">
+        <div class="home-sidebar">
+            <div class="home-logo">
+                <h1>♫ 音乐可视化</h1>
+                <p class="home-subtitle">感受节奏的视觉魅力</p>
+            </div>
+            <div class="home-actions">
+                <label class="home-btn" for="file-input">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+                    打开音乐文件
+                </label>
+                <button class="home-btn" id="folder-btn">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                    打开音乐文件夹
+                </button>
             </div>
             <input type="file" id="file-input" accept="audio/*">
-            <p class="drop-hint">或拖放音频文件到页面</p>
+            <p class="home-drop-hint">或拖放音频文件到页面</p>
+        </div>
+        <div class="home-content">
+            <div class="home-list-header">
+                <h2>音乐库</h2>
+                <span class="home-list-count" id="home-list-count">0 首歌曲</span>
+            </div>
+            <div class="home-list" id="home-list">
+                <div class="home-list-empty">暂无音乐，请选择文件夹</div>
+            </div>
         </div>
     </div>
 

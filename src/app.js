@@ -1,4 +1,4 @@
-import { init, getState, getEls, updateProgressBar } from './controls.js';
+import { init, getState, getEls, updateProgressBar, showHomePage } from './controls.js';
 import { draw } from './renderer.js';
 import { initGlowLayer, resizeGlowLayer } from './glowlayer.js';
 
@@ -54,3 +54,12 @@ window.addEventListener('resize', resize);
 resize();
 
 requestAnimationFrame(loop);
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const s = getState();
+        if (!s.onHomePage) {
+            showHomePage();
+        }
+    }
+});

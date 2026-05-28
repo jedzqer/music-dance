@@ -17,7 +17,8 @@ const state = {
     currentLyricsIndex: -1,
     coverPalette: null,
     coverUrl: null,
-    playlist: new Playlist()
+    playlist: new Playlist(),
+    onHomePage: true
 };
 
 const els = {};
@@ -33,7 +34,9 @@ export function getEls() {
 export function init() {
     els.canvas = document.getElementById('canvas');
     els.ctx = els.canvas.getContext('2d');
-    els.overlay = document.getElementById('overlay');
+    els.homePage = document.getElementById('home-page');
+    els.homeList = document.getElementById('home-list');
+    els.homeListCount = document.getElementById('home-list-count');
     els.fileInput = document.getElementById('file-input');
     els.playBtn = document.getElementById('play-btn');
     els.trackName = document.getElementById('track-name');
@@ -274,6 +277,7 @@ async function loadFile(file) {
         state.audioElement.addEventListener('ended', () => {
             state.isPlaying = false;
             setPlayIcon(false);
+            renderHomeList();
         });
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
@@ -288,8 +292,9 @@ async function loadFile(file) {
         state.isPlaying = true;
         setPlayIcon(true);
 
-        els.overlay.classList.add('hidden');
+        els.homePage.classList.add('hidden');
         els.controls.classList.add('visible');
+        state.onHomePage = false;
     } catch (err) {
         console.error(err);
         showError('无法播放该文件，请检查文件格式');
@@ -338,18 +343,14 @@ function handleKeyDown(e) {
 
 function handleDragOver(e) {
     e.preventDefault();
-    els.overlay.style.background = 'rgba(5, 5, 16, 0.45)';
 }
 
 function handleDragLeave(e) {
-    if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
-        els.overlay.style.background = 'rgba(5, 5, 16, 0.75)';
-    }
+    // no-op
 }
 
 function handleDrop(e) {
     e.preventDefault();
-    els.overlay.style.background = 'rgba(5, 5, 16, 0.75)';
     const file = e.dataTransfer.files[0];
     if (!file) return;
     els.fileInput.files = e.dataTransfer.files;
@@ -382,7 +383,7 @@ async function handleFolderSelect() {
       }
 
       renderPlaylist();
-      togglePlaylistPanel(true);
+      renderHomeList();
       showError(`已加载 ${files.length} 首歌曲`);
 
       if (window.electronAPI) {
@@ -415,6 +416,7 @@ async function handleFolderSelect() {
       const files = await state.playlist.loadFromFolder(folderPath);
       if (files.length > 0) {
         renderPlaylist();
+        renderHomeList();
       }
     } catch (error) {
       console.error('恢复上次文件夹失败:', error);
@@ -525,6 +527,7 @@ async function playPlaylistItem(index) {
         
         await loadFile(file);
         renderPlaylist();
+        renderHomeList();
     } catch (error) {
         console.error('播放失败:', error);
         showError('无法播放该文件');
@@ -547,4 +550,64 @@ async function handleNext() {
     if (item) {
         await playPlaylistItem(state.playlist.currentIndex);
     }
+}
+
+function renderHomeList() {
+    els.homeList.innerHTML = '';
+    els.homeListCount.textContent = `${state.playlist.getSize()} 首歌曲`;
+
+    if (state.playlist.isEmpty()) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'home-list-empty';
+        emptyDiv.textContent = '暂无音乐，请选择文件夹';
+        els.homeList.appendChild(emptyDiv);
+        return;
+    }
+
+    state.playlist.items.forEach((item, index) => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'home-item';
+        if (index === state.playlist.currentIndex) {
+            itemDiv.classList.add('active');
+            if (state.isPlaying) {
+                itemDiv.classList.add('playing');
+            }
+        }
+        itemDiv.dataset.index = index;
+
+        const indexSpan = document.createElement('span');
+        indexSpan.className = 'home-item-index';
+        indexSpan.textContent = index + 1;
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'home-item-info';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'home-item-name';
+        nameDiv.textContent = item.name.replace(/\.[^.]+$/, '');
+
+        const metaDiv = document.createElement('div');
+        metaDiv.className = 'home-item-meta';
+        metaDiv.textContent = formatFileSize(item.size);
+
+        infoDiv.appendChild(nameDiv);
+        infoDiv.appendChild(metaDiv);
+
+        itemDiv.appendChild(indexSpan);
+        itemDiv.appendChild(infoDiv);
+
+        itemDiv.addEventListener('click', () => {
+            playPlaylistItem(index);
+        });
+
+        els.homeList.appendChild(itemDiv);
+    });
+}
+
+export async function showHomePage() {
+    state.onHomePage = true;
+    await cleanupAudio();
+    els.homePage.classList.remove('hidden');
+    els.controls.classList.remove('visible');
+    renderHomeList();
 }

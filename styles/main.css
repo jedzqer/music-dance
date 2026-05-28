@@ -37,44 +37,121 @@
             z-index: 1;
         }
 
-        /* ─── Overlay ─── */
-        .overlay {
+        /* ─── Home Page ─── */
+        .home-page {
             position: fixed; inset: 0; z-index: 30;
-            display: flex; align-items: center; justify-content: center;
-            background: rgba(5, 5, 16, 0.75);
-            backdrop-filter: blur(16px);
-            transition: opacity 0.6s, visibility 0.6s;
-        }
-        .overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-
-        .upload-panel {
-            text-align: center; color: #fff;
+            display: flex;
+            background: rgba(5, 5, 16, 0.85);
+            backdrop-filter: blur(20px);
             font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            transition: opacity 0.5s, visibility 0.5s;
         }
-        .upload-panel h1 {
-            font-size: clamp(2rem, 5vw, 3.5rem);
-            font-weight: 200; letter-spacing: 0.12em; margin-bottom: 0.3rem;
+        .home-page.hidden {
+            opacity: 0; visibility: hidden; pointer-events: none;
+        }
+        .home-sidebar {
+            width: 280px; padding: 60px 24px 24px;
+            display: flex; flex-direction: column;
+            background: rgba(10, 10, 25, 0.6);
+            border-right: 1px solid rgba(255,255,255,0.06);
+        }
+        .home-logo h1 {
+            font-size: 1.8rem; font-weight: 300;
             background: linear-gradient(135deg, #4facfe, #00f2fe, #1d976c, #fa709a);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; margin-bottom: 8px;
         }
-        .upload-panel .subtitle {
-            font-size: 0.95rem; color: rgba(255,255,255,0.45); margin-bottom: 2.5rem; letter-spacing: 0.05em;
+        .home-subtitle {
+            color: rgba(255,255,255,0.4); font-size: 0.85rem;
+            letter-spacing: 0.05em; margin-bottom: 40px;
         }
-        .upload-btn {
-            display: inline-block; padding: 14px 52px;
-            border: 1.5px solid rgba(255,255,255,0.25); border-radius: 60px;
-            font-size: 1.05rem; color: rgba(255,255,255,0.9); cursor: pointer;
-            transition: all 0.35s; background: rgba(255,255,255,0.04); letter-spacing: 0.06em;
+        .home-actions {
+            display: flex; flex-direction: column; gap: 12px;
         }
-        .upload-btn:hover {
-            border-color: rgba(79, 172, 254, 0.7); background: rgba(79, 172, 254, 0.08);
-            box-shadow: 0 0 40px rgba(79, 172, 254, 0.25), inset 0 0 20px rgba(79, 172, 254, 0.05);
-            transform: translateY(-3px);
+        .home-btn {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 20px; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px; background: rgba(255,255,255,0.04);
+            color: rgba(255,255,255,0.85); font-size: 0.95rem;
+            cursor: pointer; transition: all 0.3s;
         }
-        .upload-btn:active { transform: translateY(0); }
+        .home-btn:hover {
+            background: rgba(79, 172, 254, 0.12);
+            border-color: rgba(79, 172, 254, 0.5);
+            transform: translateY(-2px);
+        }
+        .home-btn svg {
+            width: 20px; height: 20px; flex-shrink: 0;
+        }
         #file-input { display: none; }
-        .drop-hint {
-            margin-top: 1.2rem; font-size: 0.75rem; color: rgba(255,255,255,0.25);
+        .home-drop-hint {
+            margin-top: 20px; font-size: 0.75rem;
+            color: rgba(255,255,255,0.25); text-align: center;
+        }
+        .home-content {
+            flex: 1; display: flex; flex-direction: column;
+            padding: 60px 32px 24px; overflow: hidden;
+        }
+        .home-list-header {
+            display: flex; align-items: baseline; gap: 16px;
+            margin-bottom: 20px; padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .home-list-header h2 {
+            color: rgba(255,255,255,0.9); font-size: 1.5rem; font-weight: 400;
+        }
+        .home-list-count {
+            color: rgba(255,255,255,0.4); font-size: 0.85rem;
+        }
+        .home-list {
+            flex: 1; overflow-y: auto; padding-right: 8px;
+        }
+        .home-list::-webkit-scrollbar { width: 6px; }
+        .home-list::-webkit-scrollbar-track { background: transparent; }
+        .home-list::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1); border-radius: 3px;
+        }
+        .home-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .home-item {
+            display: flex; align-items: center; gap: 16px;
+            padding: 14px 16px; border-radius: 10px;
+            cursor: pointer; transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .home-item:hover {
+            background: rgba(255,255,255,0.04);
+            border-color: rgba(255,255,255,0.06);
+        }
+        .home-item.active {
+            background: rgba(79, 172, 254, 0.12);
+            border-color: rgba(79, 172, 254, 0.3);
+        }
+        .home-item-index {
+            color: rgba(255,255,255,0.3); font-size: 0.85rem;
+            min-width: 28px; text-align: right;
+        }
+        .home-item.active .home-item-index { color: #4facfe; }
+        .home-item-info { flex: 1; overflow: hidden; }
+        .home-item-name {
+            color: rgba(255,255,255,0.85); font-size: 0.95rem;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .home-item.active .home-item-name { color: #fff; }
+        .home-item-meta {
+            color: rgba(255,255,255,0.35); font-size: 0.8rem; margin-top: 4px;
+        }
+        .home-list-empty {
+            text-align: center; padding: 60px 20px;
+            color: rgba(255,255,255,0.25); font-size: 0.95rem;
+        }
+        .home-item.playing .home-item-name {
+            color: #4facfe;
+        }
+        .home-item.playing::before {
+            content: '▶'; color: #4facfe; font-size: 0.8rem;
+            margin-right: -8px;
         }
 
         /* ─── Left Player Rail ─── */
@@ -270,24 +347,6 @@
         }
         .error-toast.show { opacity: 1; }
 
-        /* ─── Button Group ─── */
-        .button-group {
-            display: flex; flex-direction: column; gap: 12px; align-items: center;
-        }
-        .button-group .upload-btn {
-            width: 240px; text-align: center;
-        }
-        .button-group button.upload-btn {
-            appearance: none; -webkit-appearance: none;
-        }
-        .folder-btn {
-            background: rgba(79, 172, 254, 0.15) !important;
-            border-color: rgba(79, 172, 254, 0.4) !important;
-        }
-        .folder-btn:hover {
-            background: rgba(79, 172, 254, 0.25) !important;
-            border-color: rgba(79, 172, 254, 0.7) !important;
-        }
 
         /* ─── Playlist Panel ─── */
         .playlist-panel {
