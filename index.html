@@ -52,6 +52,10 @@
                 <h2>音乐库</h2>
                 <span class="home-list-count" id="home-list-count">0 首歌曲</span>
             </div>
+            <div class="home-search-wrap" id="home-search-wrap">
+                <svg class="home-search-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                <input type="text" id="home-search" placeholder="搜索歌曲..." autocomplete="off">
+            </div>
             <div class="home-list" id="home-list">
                 <div class="home-list-empty">暂无音乐，请选择文件夹</div>
             </div>
@@ -65,6 +69,43 @@
             <button class="playlist-close" id="playlist-close">×</button>
         </div>
         <div class="playlist-content" id="playlist-content"></div>
+    </div>
+
+    <div class="settings-panel" id="settings-panel">
+        <div class="settings-header">
+            <h3>设置</h3>
+            <button class="settings-close" id="settings-close">&times;</button>
+        </div>
+        <div class="settings-content" id="settings-content">
+            <div class="settings-group">
+                <div class="settings-label">循环模式</div>
+                <div class="settings-row">
+                    <button class="settings-option" data-loop="none">不循环</button>
+                    <button class="settings-option" data-loop="all">列表循环</button>
+                    <button class="settings-option" data-loop="one">单曲循环</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">随机播放</div>
+                <div class="settings-row">
+                    <button class="settings-option" id="settings-shuffle-toggle">关闭</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">可视化质量</div>
+                <div class="settings-row">
+                    <button class="settings-option" data-fft="512">低</button>
+                    <button class="settings-option" data-fft="1024">中</button>
+                    <button class="settings-option" data-fft="2048">高</button>
+                </div>
+            </div>
+            <div class="settings-group">
+                <div class="settings-label">自动加载外部歌词</div>
+                <div class="settings-row">
+                    <button class="settings-option" id="settings-lrc-toggle">开启</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="progress-container" id="progress-container">
@@ -95,6 +136,16 @@
         </button>
         <button id="playlist-btn" title="播放列表">
             <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+        </button>
+        <button id="shuffle-btn" title="随机播放">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+        </button>
+        <button id="loop-btn" title="循环模式">
+            <svg class="icon icon-loop-all" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            <svg class="icon icon-loop-one" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4zm-4-2V9h-1l-2 1v1h1.5v4H13z"/></svg>
+        </button>
+        <button id="settings-btn" title="设置">
+            <svg class="icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1115.6 12 3.6 3.6 0 0112 15.6z"/></svg>
         </button>
         <div class="vol-wrap">
             <svg class="vol-icon" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>

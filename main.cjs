@@ -295,6 +295,22 @@ ipcMain.handle('extract-cover', async (event, filePath) => {
   }
 });
 
+ipcMain.handle('get-settings', () => loadSettings());
+
+ipcMain.handle('save-settings', (event, settings) => {
+  const current = loadSettings();
+  Object.assign(current, settings);
+  saveSettings(current);
+});
+
+ipcMain.handle('read-lrc-file', async (event, filePath) => {
+  try {
+    return await fs.promises.readFile(filePath, 'utf-8');
+  } catch (_) {
+    return null;
+  }
+});
+
 ipcMain.on('window-minimize', () => {
   mainWindow?.minimize();
 });

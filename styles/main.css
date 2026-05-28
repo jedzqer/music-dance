@@ -447,6 +447,91 @@
             text-align: center; padding: 40px 20px; color: rgba(255,255,255,0.25);
         }
 
+        /* ─── Controls Active Mode ─── */
+        .controls button.active-mode {
+            color: #4facfe;
+            background: rgba(79, 172, 254, 0.15);
+        }
+
+        /* ─── Settings Panel ─── */
+        .settings-panel {
+            position: fixed;
+            width: min(400px, 80vw); max-height: 60vh; z-index: 35;
+            background: rgba(10, 10, 25, 0.92); backdrop-filter: blur(24px);
+            border-radius: 18px; border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 22px 70px rgba(0,0,0,0.44);
+            opacity: 0; visibility: hidden;
+            transform: translateY(20px) scale(0.95);
+            transition: opacity 0.3s, visibility 0.3s, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            font-family: var(--font-main);
+        }
+        .settings-panel.visible {
+            opacity: 1; visibility: visible;
+            transform: translateY(0) scale(1);
+        }
+        .settings-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 18px 22px; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .settings-header h3 {
+            color: rgba(255,255,255,0.84); font-size: 1rem; font-weight: 500;
+        }
+        .settings-close {
+            background: none; border: none; color: rgba(255,255,255,0.5);
+            font-size: 1.5rem; cursor: pointer; padding: 0; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center; border-radius: 50%;
+            transition: background 0.2s;
+        }
+        .settings-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .settings-content { padding: 16px 22px; overflow-y: auto; max-height: calc(60vh - 70px); }
+        .settings-group { margin-bottom: 20px; }
+        .settings-group:last-child { margin-bottom: 0; }
+        .settings-label { color: rgba(255,255,255,0.6); font-size: 0.85rem; margin-bottom: 10px; }
+        .settings-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .settings-option {
+            padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.7);
+            font-size: 0.85rem; cursor: pointer; transition: all 0.2s;
+            font-family: var(--font-main);
+        }
+        .settings-option:hover { background: rgba(255,255,255,0.08); }
+        .settings-option.active {
+            background: rgba(79, 172, 254, 0.15); border-color: rgba(79, 172, 254, 0.5);
+            color: #4facfe;
+        }
+
+        /* ─── Home Search ─── */
+        .home-search-wrap {
+            position: relative; margin-bottom: 16px;
+        }
+        .home-search-icon {
+            position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+            color: rgba(255,255,255,0.3); width: 16px; height: 16px; pointer-events: none;
+        }
+        #home-search {
+            width: 100%; padding: 10px 14px 10px 40px;
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+            background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.85);
+            font-size: 0.9rem; font-family: var(--font-main);
+            outline: none; transition: border-color 0.2s;
+        }
+        #home-search:focus { border-color: rgba(79, 172, 254, 0.4); }
+        #home-search::placeholder { color: rgba(255,255,255,0.25); }
+
+        /* ─── Lyrics Load Button ─── */
+        .lyrics-load-btn {
+            display: block; margin: 16px auto 0; padding: 8px 20px;
+            border: 1px solid rgba(255,255,255,0.15); border-radius: 8px;
+            background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6);
+            font-size: 0.8rem; cursor: pointer; transition: all 0.2s;
+            font-family: var(--font-main);
+        }
+        .lyrics-load-btn:hover {
+            background: rgba(79, 172, 254, 0.12);
+            border-color: rgba(79, 172, 254, 0.5);
+            color: #4facfe;
+        }
+
         /* ─── Fullscreen Mode ─── */
         body.fullscreen .title-bar { display: none; }
         body.fullscreen .cover-art { top: 18px; }

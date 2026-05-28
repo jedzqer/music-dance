@@ -60,4 +60,19 @@ export class Playlist {
   isEmpty() {
     return this.items.length === 0;
   }
+
+  isAtEnd() {
+    return this.currentIndex >= this.items.length - 1;
+  }
+
+  isAtBeginning() {
+    return this.currentIndex <= 0;
+  }
+
+  getRandomIndex() {
+    if (this.items.length <= 1) return this.currentIndex;
+    let idx;
+    do { idx = Math.floor(Math.random() * this.items.length); } while (idx === this.currentIndex);
+    return idx;
+  }
 }

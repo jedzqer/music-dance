@@ -3,7 +3,7 @@ import { loadCoverPalette, pictureToImageUrl, readEmbeddedPicture } from './medi
 import { parseLyrics, readEmbeddedLyrics } from './lyrics.js';
 import { resetParticles } from './particles.js';
 import { resetBeatDetector } from './beatdetector.js';
-import { getFFTSize, resetRenderer } from './renderer.js';
+import { resetRenderer } from './renderer.js';
 import { Playlist } from './playlist.js';
 
 const state = {
@@ -19,7 +19,12 @@ const state = {
     coverUrl: null,
     audioBlobUrl: null,
     playlist: new Playlist(),
-    onHomePage: true
+    onHomePage: true,
+    loopMode: 'none',       // 'none' | 'all' | 'one'
+    shuffleOn: false,
+    shuffleHistory: [],
+    fftSize: 1024,
+    autoLoadLrc: true
 };
 
 const els = {};
@@ -28,6 +33,7 @@ let lyricsLineElements = [];
 let currentActiveLyricsEl = null;
 
 const coverCache = new Map(); // path → blob URL string (null = no cover)
+let homeSearchQuery = '';
 
 const MIME_TYPES = {
     mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg',
@@ -141,6 +147,13 @@ export function init() {
     els.prevBtn = document.getElementById('prev-btn');
     els.nextBtn = document.getElementById('next-btn');
     els.playlistBtn = document.getElementById('playlist-btn');
+    els.shuffleBtn = document.getElementById('shuffle-btn');
+    els.loopBtn = document.getElementById('loop-btn');
+    els.settingsBtn = document.getElementById('settings-btn');
+    els.settingsPanel = document.getElementById('settings-panel');
+    els.settingsClose = document.getElementById('settings-close');
+    els.settingsContent = document.getElementById('settings-content');
+    els.homeSearch = document.getElementById('home-search');
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
@@ -159,9 +172,17 @@ export function init() {
     els.prevBtn.addEventListener('click', handlePrevious);
     els.nextBtn.addEventListener('click', handleNext);
     els.playlistBtn.addEventListener('click', () => togglePlaylistPanel());
+    els.shuffleBtn.addEventListener('click', handleShuffleToggle);
+    els.loopBtn.addEventListener('click', handleCycleLoopMode);
+    els.settingsBtn.addEventListener('click', () => toggleSettingsPanel());
+    els.settingsClose.addEventListener('click', () => toggleSettingsPanel(false));
+    els.settingsContent.addEventListener('click', handleSettingsClick);
+    els.homeSearch.addEventListener('input', handleHomeSearch);
+    document.addEventListener('click', handleOutsideClick);
 
     restoreVolume();
     restoreLastFolder();
+    restoreSettings();
 }
 
 function setPlayIcon(playing) {
@@ -269,6 +290,11 @@ function renderLyrics() {
         div.className = 'lyrics-empty';
         div.textContent = '当前音乐无内嵌歌词';
         els.lyricsContent.appendChild(div);
+        const btn = document.createElement('button');
+        btn.className = 'lyrics-load-btn';
+        btn.textContent = '手动加载歌词文件';
+        btn.addEventListener('click', handleManualLrcLoad);
+        els.lyricsContent.appendChild(btn);
         els.lyricsPanel.classList.add('visible');
         return;
     }
@@ -319,8 +345,7 @@ function applyLyrics(raw) {
 
 async function loadEmbeddedLyrics(file) {
     const rawLyrics = await readEmbeddedLyrics(file);
-    if (applyLyrics(rawLyrics)) return;
-    renderLyrics();
+    return applyLyrics(rawLyrics);
 }
 
 export async function cleanupAudio() {
@@ -368,7 +393,7 @@ async function loadFile(file, filePath) {
     try {
         state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
         state.analyser = state.audioContext.createAnalyser();
-        state.analyser.fftSize = getFFTSize();
+        state.analyser.fftSize = state.fftSize;
         state.analyser.smoothingTimeConstant = 0.72;
         state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
 
@@ -382,14 +407,19 @@ async function loadFile(file, filePath) {
         state.analyser.connect(state.audioContext.destination);
 
         state.audioElement.addEventListener('ended', () => {
-            state.isPlaying = false;
-            setPlayIcon(false);
-            renderHomeList();
+            handleTrackEnded();
         });
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
 
-        loadEmbeddedLyrics(file).catch(() => renderLyrics());
+        loadEmbeddedLyrics(file).then(embeddedLoaded => {
+            if (!embeddedLoaded && state.autoLoadLrc && filePath) {
+                return tryLoadExternalLrc(filePath);
+            }
+            return embeddedLoaded;
+        }).then(anyLoaded => {
+            if (!anyLoaded) renderLyrics();
+        }).catch(() => renderLyrics());
         loadCoverArt(file, filePath).then((picture) => {
             return loadCoverPalette(file, picture);
         }).then((palette) => {
@@ -486,6 +516,8 @@ async function handleFolderSelect() {
         return;
       }
 
+      homeSearchQuery = '';
+      if (els.homeSearch) els.homeSearch.value = '';
       renderPlaylist();
       renderHomeList();
       showError(`已加载 ${files.length} 首歌曲`);
@@ -592,8 +624,8 @@ function formatFileSize(bytes) {
 
 function togglePlaylistPanel(show) {
     const shouldShow = show === undefined ? !els.playlistPanel.classList.contains('visible') : show;
-    
     if (shouldShow) {
+        toggleSettingsPanel(false);
         positionPlaylistAboveButton();
         els.playlistPanel.classList.add('visible');
     } else {
@@ -642,27 +674,34 @@ async function playPlaylistItem(index) {
 
 async function handlePrevious() {
     if (state.playlist.isEmpty()) return;
-
-    const item = state.playlist.getPrevious();
-    if (item) {
-        await playPlaylistItem(state.playlist.currentIndex);
-    }
+    const idx = getPrevTrackIndex();
+    if (idx < 0) return;
+    state.playlist.setCurrentIndex(idx);
+    await playPlaylistItem(idx);
 }
 
 async function handleNext() {
     if (state.playlist.isEmpty()) return;
-
-    const item = state.playlist.getNext();
-    if (item) {
-        await playPlaylistItem(state.playlist.currentIndex);
-    }
+    const idx = getNextTrackIndex();
+    if (idx < 0) return;
+    state.playlist.setCurrentIndex(idx);
+    await playPlaylistItem(idx);
 }
 
 function renderHomeList() {
     els.homeList.innerHTML = '';
-    els.homeListCount.textContent = `${state.playlist.getSize()} 首歌曲`;
+    const allItems = state.playlist.items;
+    const filtered = homeSearchQuery
+        ? allItems.filter(item => item.name.replace(/\.[^.]+$/, '').toLowerCase().includes(homeSearchQuery))
+        : allItems;
 
-    if (state.playlist.isEmpty()) {
+    let countText = `${filtered.length} 首歌曲`;
+    if (homeSearchQuery && allItems.length > 0 && filtered.length !== allItems.length) {
+        countText += ` (共 ${allItems.length} 首)`;
+    }
+    els.homeListCount.textContent = countText;
+
+    if (allItems.length === 0) {
         const emptyDiv = document.createElement('div');
         emptyDiv.className = 'home-list-empty';
         emptyDiv.textContent = '暂无音乐，请选择文件夹';
@@ -670,7 +709,16 @@ function renderHomeList() {
         return;
     }
 
-    state.playlist.items.forEach((item, index) => {
+    if (filtered.length === 0) {
+        const emptyDiv = document.createElement('div');
+        emptyDiv.className = 'home-list-empty';
+        emptyDiv.textContent = '没有匹配的歌曲';
+        els.homeList.appendChild(emptyDiv);
+        return;
+    }
+
+    filtered.forEach((item) => {
+        const index = allItems.indexOf(item);
         const itemDiv = document.createElement('div');
         itemDiv.className = 'home-item';
         if (index === state.playlist.currentIndex) {
@@ -718,10 +766,212 @@ function renderHomeList() {
     });
 }
 
+// ─── Loop/Shuffle/Auto-play ───
+
+function getNextTrackIndex() {
+    if (state.loopMode === 'one') return state.playlist.currentIndex;
+    if (state.shuffleOn) {
+        const idx = state.playlist.getRandomIndex();
+        state.shuffleHistory.push(idx);
+        return idx;
+    }
+    if (state.playlist.isAtEnd()) {
+        return state.loopMode === 'all' ? 0 : -1;
+    }
+    return state.playlist.currentIndex + 1;
+}
+
+function getPrevTrackIndex() {
+    if (state.shuffleOn && state.shuffleHistory.length > 1) {
+        state.shuffleHistory.pop();
+        return state.shuffleHistory[state.shuffleHistory.length - 1];
+    }
+    if (state.loopMode === 'one') return state.playlist.currentIndex;
+    if (state.playlist.isAtBeginning()) {
+        return state.loopMode === 'all' ? state.playlist.items.length - 1 : -1;
+    }
+    return state.playlist.currentIndex - 1;
+}
+
+function handleTrackEnded() {
+    const idx = getNextTrackIndex();
+    if (idx < 0) {
+        state.isPlaying = false;
+        setPlayIcon(false);
+        renderHomeList();
+        return;
+    }
+    state.playlist.setCurrentIndex(idx);
+    playPlaylistItem(idx);
+}
+
+function handleShuffleToggle() {
+    state.shuffleOn = !state.shuffleOn;
+    els.shuffleBtn.classList.toggle('active-mode', state.shuffleOn);
+    if (state.shuffleOn) state.shuffleHistory = [state.playlist.currentIndex];
+    persistSettings();
+}
+
+function handleCycleLoopMode() {
+    const modes = ['none', 'all', 'one'];
+    const idx = modes.indexOf(state.loopMode);
+    state.loopMode = modes[(idx + 1) % 3];
+    updateLoopBtnIcon();
+    persistSettings();
+}
+
+function updateLoopBtnIcon() {
+    const allIcon = els.loopBtn.querySelector('.icon-loop-all');
+    const oneIcon = els.loopBtn.querySelector('.icon-loop-one');
+    allIcon.style.display = state.loopMode === 'one' ? 'none' : 'block';
+    oneIcon.style.display = state.loopMode === 'one' ? 'block' : 'none';
+    els.loopBtn.classList.toggle('active-mode', state.loopMode !== 'none');
+    els.loopBtn.title = { none: '不循环', all: '列表循环', one: '单曲循环' }[state.loopMode];
+}
+
+// ─── Settings ───
+
+function persistSettings() {
+    if (!window.electronAPI?.saveSettings) return;
+    window.electronAPI.saveSettings({
+        loopMode: state.loopMode,
+        shuffleOn: state.shuffleOn,
+        fftSize: state.fftSize,
+        autoLoadLrc: state.autoLoadLrc
+    }).catch(() => {});
+}
+
+async function restoreSettings() {
+    if (!window.electronAPI?.getSettings) return;
+    try {
+        const settings = await window.electronAPI.getSettings();
+        if (settings.loopMode) state.loopMode = settings.loopMode;
+        if (typeof settings.shuffleOn === 'boolean') state.shuffleOn = settings.shuffleOn;
+        if (settings.fftSize) state.fftSize = settings.fftSize;
+        if (typeof settings.autoLoadLrc === 'boolean') state.autoLoadLrc = settings.autoLoadLrc;
+        updateLoopBtnIcon();
+        els.shuffleBtn.classList.toggle('active-mode', state.shuffleOn);
+    } catch (_) {}
+}
+
+function toggleSettingsPanel(show) {
+    const shouldShow = show === undefined ? !els.settingsPanel.classList.contains('visible') : show;
+    if (shouldShow) {
+        togglePlaylistPanel(false);
+        positionSettingsAboveButton();
+        syncSettingsUI();
+        els.settingsPanel.classList.add('visible');
+    } else {
+        els.settingsPanel.classList.remove('visible');
+    }
+}
+
+function positionSettingsAboveButton() {
+    const btnRect = els.settingsBtn.getBoundingClientRect();
+    const panelWidth = Math.min(400, window.innerWidth * 0.8);
+    const gap = 12;
+    let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
+    left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
+    let bottom = window.innerHeight - btnRect.top + gap;
+    const panelMaxHeight = window.innerHeight * 0.6;
+    if (window.innerHeight - bottom - panelMaxHeight < 16) {
+        els.settingsPanel.style.top = (btnRect.bottom + gap) + 'px';
+        els.settingsPanel.style.bottom = 'auto';
+    } else {
+        els.settingsPanel.style.bottom = bottom + 'px';
+        els.settingsPanel.style.top = 'auto';
+    }
+    els.settingsPanel.style.left = left + 'px';
+    els.settingsPanel.style.width = panelWidth + 'px';
+}
+
+function syncSettingsUI() {
+    document.querySelectorAll('[data-loop]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.loop === state.loopMode);
+    });
+    const shuffleToggle = document.getElementById('settings-shuffle-toggle');
+    if (shuffleToggle) shuffleToggle.textContent = state.shuffleOn ? '开启' : '关闭';
+    document.querySelectorAll('[data-fft]').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.fft) === state.fftSize);
+    });
+    const lrcToggle = document.getElementById('settings-lrc-toggle');
+    if (lrcToggle) lrcToggle.textContent = state.autoLoadLrc ? '开启' : '关闭';
+}
+
+function handleSettingsClick(e) {
+    const option = e.target.closest('.settings-option');
+    if (!option) return;
+    if (option.dataset.loop) {
+        state.loopMode = option.dataset.loop;
+        updateLoopBtnIcon();
+    } else if (option.id === 'settings-shuffle-toggle') {
+        state.shuffleOn = !state.shuffleOn;
+        els.shuffleBtn.classList.toggle('active-mode', state.shuffleOn);
+        if (state.shuffleOn) state.shuffleHistory = [state.playlist.currentIndex];
+    } else if (option.dataset.fft) {
+        state.fftSize = parseInt(option.dataset.fft);
+    } else if (option.id === 'settings-lrc-toggle') {
+        state.autoLoadLrc = !state.autoLoadLrc;
+    }
+    syncSettingsUI();
+    persistSettings();
+}
+
+// ─── External LRC ───
+
+async function tryLoadExternalLrc(filePath) {
+    if (!filePath || !window.electronAPI?.readLrcFile) return false;
+    const lrcPath = filePath.replace(/\.[^.]+$/, '.lrc');
+    try {
+        const raw = await window.electronAPI.readLrcFile(lrcPath);
+        if (raw) return applyLyrics(raw);
+    } catch (_) {}
+    return false;
+}
+
+function handleManualLrcLoad() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.lrc';
+    input.addEventListener('change', async () => {
+        const file = input.files[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            if (!applyLyrics(text)) {
+                showError('无法解析歌词文件');
+            }
+        } catch (_) {
+            showError('读取歌词文件失败');
+        }
+    });
+    input.click();
+}
+
+// ─── Search ───
+
+function handleHomeSearch() {
+    homeSearchQuery = els.homeSearch.value.trim().toLowerCase();
+    renderHomeList();
+}
+
+function handleOutsideClick(e) {
+    if (els.settingsPanel.classList.contains('visible') &&
+        !els.settingsPanel.contains(e.target) && !els.settingsBtn.contains(e.target)) {
+        toggleSettingsPanel(false);
+    }
+    if (els.playlistPanel.classList.contains('visible') &&
+        !els.playlistPanel.contains(e.target) && !els.playlistBtn.contains(e.target)) {
+        togglePlaylistPanel(false);
+    }
+}
+
 export async function showHomePage() {
     state.onHomePage = true;
     await cleanupAudio();
     els.homePage.classList.remove('hidden');
     els.controls.classList.remove('visible');
+    homeSearchQuery = '';
+    if (els.homeSearch) els.homeSearch.value = '';
     renderHomeList();
 }
