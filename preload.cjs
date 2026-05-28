@@ -16,5 +16,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowMaximize: () => ipcRenderer.send('window-maximize'),
   windowClose: () => ipcRenderer.send('window-close'),
   windowToggleFullscreen: () => ipcRenderer.send('window-toggle-fullscreen'),
-  onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-changed', (_event, value) => callback(value))
+  onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-changed', (_event, value) => callback(value)),
+  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources')
 });

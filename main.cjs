@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -333,4 +333,9 @@ ipcMain.on('window-toggle-fullscreen', () => {
     mainWindow.setFullScreen(willBeFullscreen);
     mainWindow.webContents.send('fullscreen-changed', willBeFullscreen);
   }
+});
+
+ipcMain.handle('get-desktop-sources', async () => {
+  const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] });
+  return sources.map(s => ({ id: s.id, name: s.name, display_id: s.display_id }));
 });

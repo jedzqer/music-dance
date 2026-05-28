@@ -36,7 +36,10 @@ const state = {
     _gainSecondary: null,
     _crossfadeRaf: null,
     _autoPauseTimeout: null,
-    _nextTrackPending: false
+    _nextTrackPending: false,
+    monitorMode: false,
+    _monitorStream: null,
+    _monitorSource: null
 };
 
 const els = {};
@@ -168,6 +171,8 @@ export function init() {
     els.homeSearch = document.getElementById('home-search');
     els.vizSwitcherBtn = document.getElementById('viz-switcher-btn');
     els.vizSwitcherPanel = document.getElementById('viz-switcher-panel');
+    els.monitorBtn = document.getElementById('monitor-btn');
+    els.titleBar = document.getElementById('title-bar');
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
@@ -195,6 +200,7 @@ export function init() {
     els.vizSwitcherBtn?.addEventListener('click', () => toggleVizSwitcherPanel());
     els.vizSwitcherPanel?.querySelector('.viz-switcher-close')?.addEventListener('click', () => toggleVizSwitcherPanel(false));
     els.vizSwitcherPanel?.addEventListener('click', handleVizSwitcherClick);
+    els.monitorBtn?.addEventListener('click', handleMonitorMode);
     document.addEventListener('click', handleOutsideClick);
 
     restoreVolume();
@@ -217,6 +223,7 @@ export function showError(msg) {
 }
 
 export function updateProgressBar() {
+    if (state.monitorMode) return;
     if (!state.audioElement || !state.audioElement.duration) return;
     const pct = state.audioElement.currentTime / state.audioElement.duration;
     const pos = pct * 100;
@@ -366,6 +373,10 @@ async function loadEmbeddedLyrics(file) {
 }
 
 export async function cleanupAudio() {
+    if (state.monitorMode) {
+        exitMonitorMode();
+        return;
+    }
     cancelCrossfade();
     cancelAutoPause();
     cleanupSecondaryElement();
@@ -411,6 +422,10 @@ export async function cleanupAudio() {
 }
 
 async function loadFile(file, filePath) {
+    if (state.monitorMode) {
+        exitMonitorMode();
+        await new Promise(r => setTimeout(r, 50));
+    }
     await cleanupAudio();
     await new Promise(r => setTimeout(r, 50));
 
@@ -1247,10 +1262,131 @@ function handleOutsideClick(e) {
 }
 
 export async function showHomePage() {
+    if (state.monitorMode) {
+        exitMonitorMode();
+        return;
+    }
     state.onHomePage = true;
     await cleanupAudio();
     els.homePage.classList.remove('hidden');
     els.controls.classList.remove('visible');
+    homeSearchQuery = '';
+    if (els.homeSearch) els.homeSearch.value = '';
+    renderHomeList();
+}
+
+async function handleMonitorMode() {
+    if (state.monitorMode) return;
+
+    let stream;
+    try {
+        if (window.electronAPI?.getDesktopSources) {
+            // Electron: use desktopCapturer to get system audio
+            const sources = await window.electronAPI.getDesktopSources();
+            const screen = sources.find(s => s.id.startsWith('screen:')) || sources[0];
+            if (!screen) {
+                showError('未找到可捕获的音频源');
+                return;
+            }
+            stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: screen.id
+                    }
+                },
+                video: {
+                    mandatory: {
+                        chromeMediaSource: 'desktop',
+                        chromeMediaSourceId: screen.id,
+                        minWidth: 1,
+                        maxWidth: 1,
+                        minHeight: 1,
+                        maxHeight: 1
+                    }
+                }
+            });
+        } else {
+            // Browser: use getDisplayMedia
+            stream = await navigator.mediaDevices.getDisplayMedia({
+                audio: true,
+                video: { width: 1, height: 1, frameRate: 1 }
+            });
+        }
+    } catch {
+        return;
+    }
+
+    const audioTracks = stream.getAudioTracks();
+    if (audioTracks.length === 0) {
+        stream.getTracks().forEach(t => t.stop());
+        showError('未检测到音频，请选择包含音频的窗口或标签页');
+        return;
+    }
+
+    stream.getVideoTracks().forEach(t => t.stop());
+
+    if (state.audioElement) {
+        await cleanupAudio();
+    }
+
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    state.analyser = state.audioContext.createAnalyser();
+    state.analyser.fftSize = state.fftSize;
+    state.analyser.smoothingTimeConstant = 0.72;
+    state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
+
+    const source = state.audioContext.createMediaStreamSource(stream);
+    source.connect(state.analyser);
+    // 不连接 destination —— 系统已在播放音频，只需 FFT 数据做可视化
+
+    state._monitorStream = stream;
+    state._monitorSource = source;
+    state.monitorMode = true;
+
+    els.homePage.classList.add('hidden');
+    els.controls.classList.remove('visible');
+    els.lyricsPanel.classList.remove('visible');
+    els.coverArt.style.display = 'none';
+    els.progressContainer.style.display = 'none';
+    state.onHomePage = false;
+
+    audioTracks[0].addEventListener('ended', exitMonitorMode);
+}
+
+function exitMonitorMode() {
+    if (!state.monitorMode) return;
+    state.monitorMode = false;
+
+    if (state._monitorStream) {
+        state._monitorStream.getTracks().forEach(t => t.stop());
+        state._monitorStream = null;
+    }
+
+    if (state._monitorSource) {
+        state._monitorSource.disconnect();
+        state._monitorSource = null;
+    }
+
+    if (state.audioContext && state.audioContext.state !== 'closed') {
+        state.audioContext.close().catch(() => {});
+    }
+    state.audioContext = null;
+    state.analyser = null;
+    state.frequencyData = null;
+    state._gainPrimary = null;
+
+    resetParticles();
+    resetBeatDetector();
+    resetRenderer();
+
+    els.coverArt.style.display = '';
+    els.progressContainer.style.display = '';
+    state.onHomePage = true;
+
+    els.homePage.classList.remove('hidden');
+    els.controls.classList.remove('visible');
+    els.lyricsPanel.classList.remove('visible');
     homeSearchQuery = '';
     if (els.homeSearch) els.homeSearch.value = '';
     renderHomeList();
