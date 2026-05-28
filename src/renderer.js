@@ -7,7 +7,7 @@ import {
 import { renderGlowLayer } from './glowlayer.js';
 
 const FFT_SIZE = 1024;
-const NUM_LINES = 160;
+const NUM_LINES = 60;
 
 let avgVolume = 0;
 let climaxLevel = 0;
@@ -210,7 +210,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             if (i > 0 && i < NUM_LINES - 1) {
                 const p = frequencyData[Math.floor((i - 1) * binStep)] / 255;
                 const n = frequencyData[Math.floor((i + 1) * binStep)] / 255;
-                smoothVal = p * 0.15 + rawVal * 0.7 + n * 0.15;
+                smoothVal = p * 0.2 + rawVal * 0.6 + n * 0.2;
             }
 
             const amplitude = Math.max(0.01, smoothVal);
@@ -235,10 +235,11 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             const isTop = sy < cy;
 
             ctx.save();
-            ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.72)`;
-            ctx.lineWidth = 0.8 + amplitude * 2.2 + climaxLevel * 2.5;
-            ctx.shadowBlur = 6 + climaxLevel * 18 + amplitude * 8;
-            ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${0.35 + climaxLevel * 0.45})`;
+            ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.55)`;
+            ctx.lineWidth = 2.0 + amplitude * 4.5 + climaxLevel * 4.0;
+            ctx.shadowBlur = 16 + climaxLevel * 30 + amplitude * 16;
+            ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${0.45 + climaxLevel * 0.4})`;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(sx, sy);
             ctx.lineTo(ex, ey);
@@ -259,11 +260,12 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
                     const mirrorEy = cy + (cy - rey);
 
                     ctx.save();
-                    ctx.globalAlpha = 0.16 + climaxLevel * 0.15;
-                    ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.6)`;
-                    ctx.lineWidth = 0.5 + amplitude * 1.2;
-                    ctx.shadowBlur = 3 + climaxLevel * 8;
-                    ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.2)`;
+                    ctx.globalAlpha = 0.12 + climaxLevel * 0.12;
+                    ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.45)`;
+                    ctx.lineWidth = 1.2 + amplitude * 2.5;
+                    ctx.shadowBlur = 10 + climaxLevel * 16;
+                    ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.25)`;
+                    ctx.lineCap = 'round';
                     ctx.beginPath();
                     ctx.moveTo(mirrorSx, mirrorSy);
                     ctx.lineTo(mirrorEx, mirrorEy);
@@ -273,7 +275,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             }
         }
 
-        for (let i = 0; i < NUM_LINES; i += 8) {
+        for (let i = 0; i < NUM_LINES; i += 4) {
             const bi = Math.floor(i * binStep);
             const rawVal = frequencyData[Math.min(bi, bins - 1)] / 255;
             if (rawVal < 0.25) continue;
@@ -288,10 +290,11 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             const [hr, hg, hb] = hslToRgb(Math.max(0, hue2), 95, 58 + climaxLevel * 20);
 
             ctx.save();
-            ctx.strokeStyle = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.55 + climaxLevel * 0.35})`;
-            ctx.lineWidth = 1.2 + rawVal * 2.5;
-            ctx.shadowBlur = 14 + climaxLevel * 28;
-            ctx.shadowColor = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.55 + climaxLevel * 0.35})`;
+            ctx.strokeStyle = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.4 + climaxLevel * 0.3})`;
+            ctx.lineWidth = 2.5 + rawVal * 4.0;
+            ctx.shadowBlur = 22 + climaxLevel * 36;
+            ctx.shadowColor = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.5 + climaxLevel * 0.35})`;
+            ctx.lineCap = 'round';
             ctx.beginPath();
             ctx.moveTo(sx2, sy2);
             ctx.lineTo(ex2, ey2);
@@ -300,10 +303,10 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         }
 
         ctx.save();
-        ctx.strokeStyle = `rgba(255,255,255,${0.04 + climaxLevel * 0.12 + globalIntensity * 0.08})`;
-        ctx.lineWidth = 1;
-        ctx.shadowBlur = 12 + climaxLevel * 25;
-        ctx.shadowColor = `rgba(140,210,255,${0.2 + climaxLevel * 0.45})`;
+        ctx.strokeStyle = `rgba(255,255,255,${0.03 + climaxLevel * 0.09 + globalIntensity * 0.06})`;
+        ctx.lineWidth = 1.8;
+        ctx.shadowBlur = 20 + climaxLevel * 35;
+        ctx.shadowColor = `rgba(140,210,255,${0.25 + climaxLevel * 0.4})`;
         ctx.beginPath();
         for (let i = 0; i <= NUM_LINES; i++) {
             const ii = i % NUM_LINES;
