@@ -104,9 +104,13 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     for (let lineIdx = 0; lineIdx < NUM_LINES; lineIdx++) {
         const distFromCenter = Math.abs(lineIdx - 3);
         const sign = lineIdx < 3 ? -1 : (lineIdx === 3 ? 0 : 1);
-        const outerScale = 1 + distFromCenter * 0.25;
-        const freqStart = Math.floor(bins * (0.02 + distFromCenter * 0.08));
-        const freqEnd = Math.min(bins, Math.floor(bins * (0.45 + distFromCenter * 0.12)));
+        const outerScale = 0.5 + distFromCenter * 0.45;
+
+        // Symmetric frequency mapping: center = bass, edges = treble
+        const freqStart = Math.floor(bins * 0.02);
+        const centerEnd = Math.floor(bins * 0.12);
+        const edgeEnd = Math.floor(bins * 0.72);
+        const freqEnd = centerEnd + Math.floor((edgeEnd - centerEnd) * (distFromCenter / 3));
         const freqSpan = Math.max(1, freqEnd - freqStart);
 
         for (let seg = 0; seg < LINE_SEGMENTS; seg++) {
@@ -115,9 +119,12 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
 
             lineDisplacements[smoothIdx] *= 0.55;
 
+            // Left-right symmetry: center of line = bass, edges = treble
+            const mirrorX = Math.abs(normalizedX - 0.5) * 2;
+
             let freqVal = 0;
             if (bins > 0) {
-                const freqBinIndex = freqStart + Math.floor(normalizedX * freqSpan);
+                const freqBinIndex = freqStart + Math.floor(mirrorX * freqSpan);
                 freqVal = frequencyData[Math.min(freqBinIndex, bins - 1)] / 255;
             }
 
