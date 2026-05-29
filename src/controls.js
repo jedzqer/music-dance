@@ -24,6 +24,8 @@ const state = {
     shuffleOn: false,
     shuffleHistory: [],
     fftSize: 1024,
+    smoothing: 0.72,
+    timeDomainData: null,
     autoLoadLrc: true,
     playbackRate: 1,
     crossfadeDuration: 0,       // 0=关闭, 2/3/5 秒
@@ -34,7 +36,8 @@ const state = {
     _secondarySource: null,
     _gainPrimary: null,
     _gainSecondary: null,
-    _crossfadeRaf: null,
+    _compressor: null,
+    _crossfadeTimeout: null,
     _autoPauseTimeout: null,
     _nextTrackPending: false,
     monitorMode: false,
@@ -387,15 +390,12 @@ export async function cleanupAudio() {
         state.audioElement.src = '';
         state.audioElement.load();
     }
-    if (state.audioContext && state.audioContext.state !== 'closed') {
-        state.audioContext.close().catch(() => {});
+    // 断开 gain 节点，但保留 AudioContext / analyser / compressor 复用
+    if (state._gainPrimary) {
+        state._gainPrimary.disconnect();
+        state._gainPrimary = null;
     }
-    state.audioContext = null;
-    state.analyser = null;
     state.audioElement = null;
-    state.frequencyData = null;
-    state._gainPrimary = null;
-    state._gainSecondary = null;
     state.isPlaying = false;
     state.parsedLyrics = null;
     state.currentLyricsIndex = -1;
@@ -421,6 +421,29 @@ export async function cleanupAudio() {
     resetRenderer();
 }
 
+function ensureAudioContext() {
+    if (state.audioContext && state.audioContext.state !== 'closed') return;
+    state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+    state.analyser = state.audioContext.createAnalyser();
+    state.analyser.fftSize = state.fftSize;
+    state.analyser.smoothingTimeConstant = state.smoothing;
+    state.analyser.minDecibels = -90;
+    state.analyser.maxDecibels = -10;
+    state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
+    state.timeDomainData = new Uint8Array(state.analyser.frequencyBinCount);
+
+    // 永久节点：compressor → analyser → destination
+    state._compressor = state.audioContext.createDynamicsCompressor();
+    state._compressor.threshold.value = -24;
+    state._compressor.knee.value = 12;
+    state._compressor.ratio.value = 4;
+    state._compressor.attack.value = 0.003;
+    state._compressor.release.value = 0.15;
+    state._compressor.connect(state.analyser);
+    state.analyser.connect(state.audioContext.destination);
+}
+
 async function loadFile(file, filePath) {
     if (state.monitorMode) {
         exitMonitorMode();
@@ -430,22 +453,18 @@ async function loadFile(file, filePath) {
     await new Promise(r => setTimeout(r, 50));
 
     try {
-        state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        state.analyser = state.audioContext.createAnalyser();
-        state.analyser.fftSize = state.fftSize;
-        state.analyser.smoothingTimeConstant = 0.72;
-        state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
+        ensureAudioContext();
 
-        // 音频图：gainPrimary → analyser → destination（analyser 自动混合多路输入）
+        // 音频图：gainPrimary → compressor → analyser → destination
         state._gainPrimary = state.audioContext.createGain();
-        state._gainPrimary.gain.value = 1;
-        state._gainPrimary.connect(state.analyser);
-        state.analyser.connect(state.audioContext.destination);
+        const vol = els.volumeSlider.value / 100;
+        state._gainPrimary.gain.value = vol > 0 ? vol : 0.001;
+        state._gainPrimary.connect(state._compressor);
 
         const url = URL.createObjectURL(file);
         state.audioBlobUrl = url;
         state.audioElement = new Audio(url);
-        state.audioElement.volume = els.volumeSlider.value / 100;
+        state.audioElement.volume = 1; // 音量由 GainNode 控制
         state.audioElement.playbackRate = state.playbackRate;
 
         const trackSource = state.audioContext.createMediaElementSource(state.audioElement);
@@ -470,6 +489,7 @@ async function loadFile(file, filePath) {
             if (palette) state.coverPalette = palette;
         }).catch(() => {});
 
+        if (state.audioContext.state === 'suspended') await state.audioContext.resume();
         await state.audioElement.play();
         state.isPlaying = true;
         setPlayIcon(true);
@@ -511,8 +531,13 @@ function handlePlayPause() {
 
 function handleVolume() {
     const vol = els.volumeSlider.value / 100;
-    if (state.audioElement) state.audioElement.volume = vol;
-    if (state._secondaryElement) state._secondaryElement.volume = vol;
+    const now = state.audioContext ? state.audioContext.currentTime : 0;
+    // 用 GainNode 控制音量，平滑过渡避免 click
+    if (state._gainPrimary) {
+        state._gainPrimary.gain.cancelScheduledValues(now);
+        state._gainPrimary.gain.setValueAtTime(state._gainPrimary.gain.value, now);
+        state._gainPrimary.gain.exponentialRampToValueAtTime(vol > 0 ? vol : 0.001, now + 0.02);
+    }
     if (window.electronAPI) {
         window.electronAPI.saveVolume(parseInt(els.volumeSlider.value)).catch(() => {});
     }
@@ -898,12 +923,11 @@ async function startCrossfade() {
 
     state._crossfadeActive = true;
     // 清理旧的 secondary 资源（不重置 _crossfadeActive）
-    if (state._crossfadeRaf) {
-        cancelAnimationFrame(state._crossfadeRaf);
-        state._crossfadeRaf = null;
+    if (state._crossfadeTimeout) {
+        clearTimeout(state._crossfadeTimeout);
+        state._crossfadeTimeout = null;
     }
     cleanupSecondaryElement();
-    if (state._gainPrimary) state._gainPrimary.gain.value = 1;
 
     // 记录意图开始时间（在异步读取文件之前），用于补偿文件读取延迟
     const intendedStartTime = state.audioContext.currentTime;
@@ -913,32 +937,40 @@ async function startCrossfade() {
         const url = URL.createObjectURL(file);
 
         state._secondaryElement = new Audio(url);
-        state._secondaryElement.volume = els.volumeSlider.value / 100;
+        state._secondaryElement.volume = 1; // 音量由 GainNode 控制
         state._secondaryElement.playbackRate = state.playbackRate;
         state._secondarySource = state.audioContext.createMediaElementSource(state._secondaryElement);
         state._gainSecondary = state.audioContext.createGain();
         state._gainSecondary.gain.value = 0;
         state._secondarySource.connect(state._gainSecondary);
-        state._gainSecondary.connect(state.analyser);
+        state._gainSecondary.connect(state._compressor);
 
         await state._secondaryElement.play();
 
         const duration = state.crossfadeDuration;
-        const startTime = intendedStartTime;
+        const fadeEndTime = intendedStartTime + duration;
+        const now = state.audioContext.currentTime;
 
-        const animate = () => {
-            if (!state._crossfadeActive) return;
-            const elapsed = state.audioContext.currentTime - startTime;
-            const progress = Math.min(Math.max(elapsed / duration, 0), 1);
-            if (state._gainPrimary) state._gainPrimary.gain.value = 1 - progress;
-            if (state._gainSecondary) state._gainSecondary.gain.value = progress;
-            if (progress < 1) {
-                state._crossfadeRaf = requestAnimationFrame(animate);
-            } else {
-                completeCrossfade(nextIdx, file, nextItem);
-            }
-        };
-        state._crossfadeRaf = requestAnimationFrame(animate);
+        // 用 Web Audio API 做采样精确的增益渐变
+        if (state._gainPrimary) {
+            const currentVol = state._gainPrimary.gain.value;
+            state._gainPrimary.gain.cancelScheduledValues(now);
+            state._gainPrimary.gain.setValueAtTime(currentVol, now);
+            state._gainPrimary.gain.linearRampToValueAtTime(0, fadeEndTime);
+        }
+        if (state._gainSecondary) {
+            const currentVol = els.volumeSlider.value / 100;
+            state._gainSecondary.gain.cancelScheduledValues(now);
+            state._gainSecondary.gain.setValueAtTime(0, now);
+            state._gainSecondary.gain.linearRampToValueAtTime(currentVol > 0 ? currentVol : 0.001, fadeEndTime);
+        }
+
+        // 用 setTimeout 在渐变完成后触发切换
+        const delayMs = Math.max(0, (fadeEndTime - now) * 1000);
+        state._crossfadeTimeout = setTimeout(() => {
+            state._crossfadeTimeout = null;
+            completeCrossfade(nextIdx, file, nextItem);
+        }, delayMs);
     } catch (err) {
         console.error('Crossfade 失败:', err);
         cancelCrossfade();
@@ -955,9 +987,9 @@ async function startCrossfade() {
 
 function completeCrossfade(nextIdx, file, item) {
     state._crossfadeActive = false;
-    if (state._crossfadeRaf) {
-        cancelAnimationFrame(state._crossfadeRaf);
-        state._crossfadeRaf = null;
+    if (state._crossfadeTimeout) {
+        clearTimeout(state._crossfadeTimeout);
+        state._crossfadeTimeout = null;
     }
 
     // 清理旧 primary
@@ -970,13 +1002,18 @@ function completeCrossfade(nextIdx, file, item) {
     }
     if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
 
-    // secondary 升级为 primary
+    // secondary 升级为 primary，确保增益到正确音量
     state.audioElement = state._secondaryElement;
     state.audioBlobUrl = URL.createObjectURL(file);
     state._gainPrimary = state._gainSecondary;
     state._secondaryElement = null;
     state._secondarySource = null;
     state._gainSecondary = null;
+
+    // 确保增益精确到目标音量
+    const vol = els.volumeSlider.value / 100;
+    state._gainPrimary.gain.cancelScheduledValues(state.audioContext.currentTime);
+    state._gainPrimary.gain.setValueAtTime(vol > 0 ? vol : 0.001, state.audioContext.currentTime);
 
     state.audioElement.addEventListener('ended', handleTrackEnded);
     state.audioElement.addEventListener('timeupdate', handleTimeUpdate);
@@ -1005,12 +1042,16 @@ function completeCrossfade(nextIdx, file, item) {
 
 function cancelCrossfade() {
     state._crossfadeActive = false;
-    if (state._crossfadeRaf) {
-        cancelAnimationFrame(state._crossfadeRaf);
-        state._crossfadeRaf = null;
+    if (state._crossfadeTimeout) {
+        clearTimeout(state._crossfadeTimeout);
+        state._crossfadeTimeout = null;
     }
     cleanupSecondaryElement();
-    if (state._gainPrimary) state._gainPrimary.gain.value = 1;
+    if (state._gainPrimary) {
+        const now = state.audioContext.currentTime;
+        state._gainPrimary.gain.cancelScheduledValues(now);
+        state._gainPrimary.gain.setValueAtTime(els.volumeSlider.value / 100 || 0.001, now);
+    }
 }
 
 function cleanupSecondaryElement() {
@@ -1062,6 +1103,7 @@ function persistSettings() {
         loopMode: state.loopMode,
         shuffleOn: state.shuffleOn,
         fftSize: state.fftSize,
+        smoothing: state.smoothing,
         autoLoadLrc: state.autoLoadLrc,
         playbackRate: state.playbackRate,
         crossfadeDuration: state.crossfadeDuration,
@@ -1077,6 +1119,7 @@ async function restoreSettings() {
         if (settings.loopMode) state.loopMode = settings.loopMode;
         if (typeof settings.shuffleOn === 'boolean') state.shuffleOn = settings.shuffleOn;
         if (settings.fftSize) state.fftSize = settings.fftSize;
+        if (settings.smoothing != null) state.smoothing = settings.smoothing;
         if (typeof settings.autoLoadLrc === 'boolean') state.autoLoadLrc = settings.autoLoadLrc;
         if (settings.playbackRate) state.playbackRate = settings.playbackRate;
         if (settings.crossfadeDuration != null) state.crossfadeDuration = settings.crossfadeDuration;
@@ -1167,6 +1210,9 @@ function syncSettingsUI() {
     document.querySelectorAll('[data-fft]').forEach(btn => {
         btn.classList.toggle('active', parseInt(btn.dataset.fft) === state.fftSize);
     });
+    document.querySelectorAll('[data-smoothing]').forEach(btn => {
+        btn.classList.toggle('active', parseFloat(btn.dataset.smoothing) === state.smoothing);
+    });
     const lrcToggle = document.getElementById('settings-lrc-toggle');
     if (lrcToggle) lrcToggle.textContent = state.autoLoadLrc ? '开启' : '关闭';
     document.querySelectorAll('[data-rate]').forEach(btn => {
@@ -1192,6 +1238,15 @@ function handleSettingsClick(e) {
         if (state.shuffleOn) state.shuffleHistory = [state.playlist.currentIndex];
     } else if (option.dataset.fft) {
         state.fftSize = parseInt(option.dataset.fft);
+        // 实时生效：更新 analyser 和 frequencyData 缓冲区
+        if (state.analyser) {
+            state.analyser.fftSize = state.fftSize;
+            state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
+            state.timeDomainData = new Uint8Array(state.analyser.frequencyBinCount);
+        }
+    } else if (option.dataset.smoothing) {
+        state.smoothing = parseFloat(option.dataset.smoothing);
+        if (state.analyser) state.analyser.smoothingTimeConstant = state.smoothing;
     } else if (option.id === 'settings-lrc-toggle') {
         state.autoLoadLrc = !state.autoLoadLrc;
     } else if (option.dataset.rate) {
@@ -1330,11 +1385,11 @@ async function handleMonitorMode() {
         await cleanupAudio();
     }
 
-    state.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    state.analyser = state.audioContext.createAnalyser();
-    state.analyser.fftSize = state.fftSize;
-    state.analyser.smoothingTimeConstant = 0.72;
-    state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
+    ensureAudioContext();
+
+    // 监听模式：断开 compressor→analyser→destination，直接连 source→analyser
+    if (state._compressor) state._compressor.disconnect();
+    state.analyser.disconnect();
 
     const source = state.audioContext.createMediaStreamSource(stream);
     source.connect(state.analyser);
@@ -1368,13 +1423,15 @@ function exitMonitorMode() {
         state._monitorSource = null;
     }
 
-    if (state.audioContext && state.audioContext.state !== 'closed') {
-        state.audioContext.close().catch(() => {});
+    // 恢复正常播放的信号链：compressor → analyser → destination
+    if (state._compressor) {
+        state._compressor.disconnect();
+        state._compressor.connect(state.analyser);
     }
-    state.audioContext = null;
-    state.analyser = null;
-    state.frequencyData = null;
-    state._gainPrimary = null;
+    if (state.analyser) {
+        state.analyser.disconnect();
+        state.analyser.connect(state.audioContext.destination);
+    }
 
     resetParticles();
     resetBeatDetector();

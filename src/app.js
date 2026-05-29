@@ -21,6 +21,7 @@ function loop(ts) {
 
     if (s.analyser && s.frequencyData) {
         s.analyser.getByteFrequencyData(s.frequencyData);
+        if (s.timeDomainData) s.analyser.getByteTimeDomainData(s.timeDomainData);
     }
     if (!s.isDraggingProgress) updateProgressBar();
 
