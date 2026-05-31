@@ -37,6 +37,7 @@ const state = {
     _gainPrimary: null,
     _gainSecondary: null,
     _compressor: null,
+    _analyserGain: null,
     _crossfadeTimeout: null,
     _autoPauseTimeout: null,
     _nextTrackPending: false,
@@ -428,20 +429,25 @@ function ensureAudioContext() {
     state.analyser = state.audioContext.createAnalyser();
     state.analyser.fftSize = state.fftSize;
     state.analyser.smoothingTimeConstant = state.smoothing;
-    state.analyser.minDecibels = -90;
+    state.analyser.minDecibels = -70;
     state.analyser.maxDecibels = -10;
     state.frequencyData = new Uint8Array(state.analyser.frequencyBinCount);
     state.timeDomainData = new Uint8Array(state.analyser.frequencyBinCount);
 
-    // 永久节点：compressor → analyser → destination
+    // 可视化专用增益节点（固定 1.8），让 analyser 不受音量滑块影响
+    state._analyserGain = state.audioContext.createGain();
+    state._analyserGain.gain.value = 1.8;
+    state._analyserGain.connect(state.analyser);
+    // analyser 不连 destination —— 仅作测量，音频输出由 compressor 链负责
+
+    // 播放链：compressor → destination（不再经过 analyser）
     state._compressor = state.audioContext.createDynamicsCompressor();
     state._compressor.threshold.value = -24;
     state._compressor.knee.value = 12;
     state._compressor.ratio.value = 4;
     state._compressor.attack.value = 0.003;
     state._compressor.release.value = 0.15;
-    state._compressor.connect(state.analyser);
-    state.analyser.connect(state.audioContext.destination);
+    state._compressor.connect(state.audioContext.destination);
 }
 
 async function loadFile(file, filePath) {
@@ -455,7 +461,8 @@ async function loadFile(file, filePath) {
     try {
         ensureAudioContext();
 
-        // 音频图：gainPrimary → compressor → analyser → destination
+        // 音频图：gainPrimary → compressor → destination（播放链）
+        //         trackSource → analyserGain → analyser（可视化链，独立于音量）
         state._gainPrimary = state.audioContext.createGain();
         const vol = els.volumeSlider.value / 100;
         state._gainPrimary.gain.value = vol > 0 ? vol : 0.001;
@@ -469,6 +476,7 @@ async function loadFile(file, filePath) {
 
         const trackSource = state.audioContext.createMediaElementSource(state.audioElement);
         trackSource.connect(state._gainPrimary);
+        trackSource.connect(state._analyserGain);
 
         state.audioElement.addEventListener('ended', handleTrackEnded);
         state.audioElement.addEventListener('timeupdate', handleTimeUpdate);
@@ -943,6 +951,7 @@ async function startCrossfade() {
         state._gainSecondary = state.audioContext.createGain();
         state._gainSecondary.gain.value = 0;
         state._secondarySource.connect(state._gainSecondary);
+        state._secondarySource.connect(state._analyserGain);
         state._gainSecondary.connect(state._compressor);
 
         await state._secondaryElement.play();
@@ -1387,8 +1396,8 @@ async function handleMonitorMode() {
 
     ensureAudioContext();
 
-    // 监听模式：断开 compressor→analyser→destination，直接连 source→analyser
-    if (state._compressor) state._compressor.disconnect();
+    // 监听模式：断开 analyserGain，直接连 source→analyser
+    if (state._analyserGain) state._analyserGain.disconnect();
     state.analyser.disconnect();
 
     const source = state.audioContext.createMediaStreamSource(stream);
@@ -1423,14 +1432,13 @@ function exitMonitorMode() {
         state._monitorSource = null;
     }
 
-    // 恢复正常播放的信号链：compressor → analyser → destination
-    if (state._compressor) {
-        state._compressor.disconnect();
-        state._compressor.connect(state.analyser);
+    // 恢复正常播放的信号链：analyserGain → analyser（仅测量，不连 destination）
+    if (state._analyserGain) {
+        state._analyserGain.disconnect();
+        state._analyserGain.connect(state.analyser);
     }
     if (state.analyser) {
         state.analyser.disconnect();
-        state.analyser.connect(state.audioContext.destination);
     }
 
     resetParticles();

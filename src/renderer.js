@@ -40,7 +40,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         for (let i = 0; i < bassBins; i++) bassAvg += frequencyData[i];
         bassAvg /= bassBins * 255;
 
-        climaxTarget = Math.max(0, Math.min(1, (curVol - 0.22) * 2.8));
+        climaxTarget = Math.max(0, Math.min(1, (curVol - 0.30) * 2.5));
         climaxLevel += (climaxTarget - climaxLevel) * 0.07;
 
         intensity = avgVolume * 0.7 + climaxLevel * 0.3;
