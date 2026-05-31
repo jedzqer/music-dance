@@ -97,7 +97,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     );
 
     const coreR = innerRadius + bassPulse * maxRadius * 0.35 + climaxLevel * 25 + beatEnergy * 34 + Math.sin(t * 3) * 3 * bassPulse;
-    const coreHue = 210 - bassPulse * 210 - climaxLevel * 30;
+    const coreHue = 210 - bassPulse * 280 - climaxLevel * 80;
     const [cr, cg, cb] = hslToRgb(Math.max(0, coreHue), 95, 62);
 
     ctx.save();
@@ -222,7 +222,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             const startR = innerRadius + climaxLevel * 18 + bassPulse * 12;
             const endR = startR + lineLen;
 
-            const hue = 215 - (amplitude + climaxLevel * 0.55) * 215;
+            const hue = 215 - (amplitude * 2.1 + climaxLevel * 1.8) * 215;
             const sat = 82 + climaxLevel * 18;
             const light = 42 + amplitude * 35 + climaxLevel * 28;
             const [r, g, b] = hslToRgb(Math.max(0, hue), Math.min(100, sat), Math.min(95, light));
