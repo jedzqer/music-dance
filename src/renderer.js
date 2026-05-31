@@ -7,7 +7,7 @@ import {
 import { renderGlowLayer } from './glowlayer.js';
 
 const FFT_SIZE = 1024;
-const NUM_LINES = 60;
+const NUM_LINES = 75;
 
 let avgVolume = 0;
 let climaxLevel = 0;
