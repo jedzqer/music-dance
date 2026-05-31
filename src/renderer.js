@@ -2,7 +2,7 @@ import { hslToRgb, colorWithLightness } from './utils.js';
 import { spawnParticles, updateParticles } from './particles.js';
 import {
     detectBeat, addShockwave, updateShockwaves, getShockwaves,
-    getBassPulse, getBeatEnergy, getLastBeatTime, updateBeatFlash, getBeatFlashAlpha
+    getBassPulse, getBeatEnergy, getRippleEnv, updateBeatFlash, getBeatFlashAlpha
 } from './beatdetector.js';
 import { renderGlowLayer } from './glowlayer.js';
 
@@ -63,7 +63,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
 
     const bassPulse = getBassPulse();
     const beatEnergy = getBeatEnergy();
-    const lastBeatTime = getLastBeatTime();
+    const rippleEnv = getRippleEnv();
     const beatFlashAlpha = getBeatFlashAlpha();
     const shockwaves = getShockwaves();
 
@@ -148,7 +148,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         const slowFlow = Math.sin(angle * 4 + t * 0.55) * (3 + bassPulse * 8);
         const contour = Math.sin(angle * 2 - t * 0.32) * midShape * 0.35;
         const sparkle = Math.sin(angle * 23 + t * 0.9) * highDetail;
-        const beatRipple = Math.sin(angle * 11 + lastBeatTime * 5) * beatEnergy * 14;
+        const beatRipple = Math.sin(angle * 7 + t * 0.6) * rippleEnv * 8;
         const r = Math.min(visualLimitRadius, membraneBase + midShape + contour + sparkle + slowFlow + beatRipple);
         const x = cx + Math.cos(angle) * r;
         const y = cy + Math.sin(angle) * r;

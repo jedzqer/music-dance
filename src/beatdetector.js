@@ -1,6 +1,7 @@
 let prevBassAvg = 0;
 let bassPulse = 0;
 let beatEnergy = 0;
+let rippleEnv = 0;
 let lastBeatTime = -1;
 let beatFlashAlpha = 0;
 const shockwaves = [];
@@ -15,6 +16,7 @@ export function detectBeat(bassAvg, t) {
         lastBeatTime = t;
         beatFlashAlpha = Math.max(beatFlashAlpha, 0.26);
     }
+    rippleEnv += (beatEnergy - rippleEnv) * 0.18;
     prevBassAvg = prevBassAvg * 0.72 + bassAvg * 0.28;
     return hit;
 }
@@ -42,6 +44,10 @@ export function getBeatEnergy() {
     return beatEnergy;
 }
 
+export function getRippleEnv() {
+    return rippleEnv;
+}
+
 export function updateBeatFlash(climaxLevel) {
     if (climaxLevel > 0.7) {
         beatFlashAlpha += ((climaxLevel - 0.6) * 0.5 - beatFlashAlpha) * 0.15;
@@ -63,6 +69,7 @@ export function resetBeatDetector() {
     prevBassAvg = 0;
     bassPulse = 0;
     beatEnergy = 0;
+    rippleEnv = 0;
     lastBeatTime = -1;
     beatFlashAlpha = 0;
     shockwaves.length = 0;
