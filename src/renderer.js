@@ -200,16 +200,20 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
 
     if (frequencyData && frequencyData.length > 0) {
         const bins = frequencyData.length;
-        const binStep = bins / NUM_LINES;
+        // 线性映射，范围限定在人类听力上下限 20 Hz–20 kHz
+        // 44100 Hz 采样率下：bin 0 ≈ 0 Hz，bin 465 ≈ 20 kHz
+        const hearingMinBin = 0;
+        const hearingMaxBin = Math.min(bins - 1, Math.round(bins * 2 * 20000 / 44100));
+        const binStep = (hearingMaxBin - hearingMinBin) / NUM_LINES;
 
         for (let i = 0; i < NUM_LINES; i++) {
-            const bi = Math.floor(i * binStep);
-            const rawVal = frequencyData[Math.min(bi, bins - 1)] / 255;
+            const bi = Math.min(bins - 1, hearingMinBin + Math.floor(i * binStep));
+            const rawVal = frequencyData[bi] / 255;
 
             let smoothVal = rawVal;
             if (i > 0 && i < NUM_LINES - 1) {
-                const p = frequencyData[Math.floor((i - 1) * binStep)] / 255;
-                const n = frequencyData[Math.floor((i + 1) * binStep)] / 255;
+                const p = frequencyData[Math.min(bins - 1, hearingMinBin + Math.floor((i - 1) * binStep))] / 255;
+                const n = frequencyData[Math.min(bins - 1, hearingMinBin + Math.floor((i + 1) * binStep))] / 255;
                 smoothVal = p * 0.2 + rawVal * 0.6 + n * 0.2;
             }
 
@@ -217,10 +221,10 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             const angle = (i / NUM_LINES) * Math.PI * 2 - Math.PI / 2;
 
             const baseLen = maxRadius * 0.06;
-            const extraLen = amplitude * maxRadius * (0.55 + climaxLevel * 0.5 + globalIntensity * 0.4);
+            const extraLen = amplitude * maxRadius * (0.83 + climaxLevel * 0.25 + globalIntensity * 0.15);
             const lineLen = baseLen + extraLen;
             const startR = innerRadius + climaxLevel * 18 + bassPulse * 12;
-            const endR = startR + lineLen;
+            const endR = Math.min(startR + lineLen, maxRadius * 1.04);
 
             const hue = 215 - (amplitude * 2.1 + climaxLevel * 1.8) * 215;
             const sat = 82 + climaxLevel * 18;
@@ -276,8 +280,8 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         }
 
         for (let i = 0; i < NUM_LINES; i += 4) {
-            const bi = Math.floor(i * binStep);
-            const rawVal = frequencyData[Math.min(bi, bins - 1)] / 255;
+            const bi = Math.min(bins - 1, hearingMinBin + Math.floor(i * binStep));
+            const rawVal = frequencyData[bi] / 255;
             if (rawVal < 0.25) continue;
             const angle = (i / NUM_LINES) * Math.PI * 2 - Math.PI / 2;
             const startR2 = innerRadius + climaxLevel * 18 + bassPulse * 12;
@@ -310,8 +314,8 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         ctx.beginPath();
         for (let i = 0; i <= NUM_LINES; i++) {
             const ii = i % NUM_LINES;
-            const bi = Math.floor(ii * binStep);
-            const val = frequencyData[Math.min(bi, bins - 1)] / 255;
+            const bi = Math.min(bins - 1, hearingMinBin + Math.floor(ii * binStep));
+            const val = frequencyData[bi] / 255;
             const angle = (ii / NUM_LINES) * Math.PI * 2 - Math.PI / 2;
             const rDist = maxRadius + val * maxRadius * 0.12 + climaxLevel * 8;
             const px = cx + Math.cos(angle) * rDist;
