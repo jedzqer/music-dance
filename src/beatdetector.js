@@ -4,13 +4,19 @@ let beatEnergy = 0;
 let rippleEnv = 0;
 let lastBeatTime = -1;
 let beatFlashAlpha = 0;
+let bassFloor = 0;
 const shockwaves = [];
 
 export function detectBeat(bassAvg, t) {
-    bassPulse += (bassAvg - bassPulse) * 0.12;
+    // 快起慢落：上升快保证灵敏度，下降平滑避免抖动闪烁
+    const k = bassAvg > bassPulse ? 0.42 : 0.15;
+    bassPulse += (bassAvg - bassPulse) * k;
     beatEnergy *= 0.86;
 
-    const hit = bassAvg > 0.4 && bassAvg > prevBassAvg * 1.35 && t - lastBeatTime > 0.18;
+    // 自适应低音基线，跟随歌曲自身音量，避免低音弱的歌触发不了节拍
+    bassFloor += (bassAvg - bassFloor) * 0.02;
+
+    const hit = bassAvg > Math.max(0.12, bassFloor * 1.3) && bassAvg > prevBassAvg * 1.25 && t - lastBeatTime > 0.18;
     if (hit) {
         beatEnergy = 1;
         lastBeatTime = t;
@@ -49,11 +55,9 @@ export function getRippleEnv() {
 }
 
 export function updateBeatFlash(climaxLevel) {
-    if (climaxLevel > 0.7) {
-        beatFlashAlpha += ((climaxLevel - 0.6) * 0.5 - beatFlashAlpha) * 0.15;
-    } else {
-        beatFlashAlpha += (0 - beatFlashAlpha) * 0.08;
-    }
+    // 白闪只在节拍命中瞬间触发（见 detectBeat），这里持续快速衰减回 0，
+    // 故名"闪"——绝不在高潮期间常驻发白
+    beatFlashAlpha += (0 - beatFlashAlpha) * 0.16;
     return beatFlashAlpha;
 }
 
@@ -72,5 +76,6 @@ export function resetBeatDetector() {
     rippleEnv = 0;
     lastBeatTime = -1;
     beatFlashAlpha = 0;
+    bassFloor = 0;
     shockwaves.length = 0;
 }

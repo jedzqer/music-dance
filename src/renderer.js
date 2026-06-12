@@ -11,10 +11,12 @@ const NUM_LINES = 75;
 
 let avgVolume = 0;
 let climaxLevel = 0;
+let glowEnv = 0;
 
 export function resetRenderer() {
     avgVolume = 0;
     climaxLevel = 0;
+    glowEnv = 0;
 }
 
 export function getFFTSize() {
@@ -58,6 +60,11 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         spawnParticles(cx, cy, 24 + Math.floor(climaxLevel * 34), hue, 4 + climaxLevel * 7);
     }
 
+    // 舒缓的辉光能量包络：跟随整体音乐能量缓慢呼吸，不跟节拍跳动
+    const energyTarget = avgVolume * 0.7 + climaxLevel * 0.3;
+    const glowK = energyTarget > glowEnv ? 0.035 : 0.018;
+    glowEnv += (energyTarget - glowEnv) * glowK;
+
     updateBeatFlash(climaxLevel);
     updateShockwaves();
 
@@ -76,27 +83,42 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     ctx.fillStyle = `rgba(${Math.round(bgR)},${Math.round(bgG)},${Math.round(bgB)},${Math.max(0.045, baseTrail)})`;
     ctx.fillRect(0, 0, W, H);
 
-    const ambientAlpha = 0.11 + globalIntensity * 0.16 + climaxLevel * 0.08;
-    const driftX = cx + Math.sin(t * 0.13) * W * 0.2;
-    const driftY = cy + Math.cos(t * 0.11) * H * 0.18;
+    // glowEnv 实际只在 ~0.05–0.25 间波动（avgVolume 偏小），归一化到 0–1 才能真正驱动光晕
+    const glowNorm = Math.min(1, glowEnv * 4.2);
+    // 主光晕：安静时基线接近 0（更透明），高潮时升到峰值；能量高时往白色混
+    const ambientAlpha = 0.20 + glowNorm * 0.26;
+    const ambientSigma = 0.23 + glowNorm * 0.12;
+    // 主光球：偏向画面左侧，小幅游动
+    const driftX = cx - W * 0.12 + Math.sin(t * 0.13) * W * 0.06;
+    const driftY = cy + Math.cos(t * 0.11) * H * 0.08;
     const accentColor = coverPalette?.colors[1] || coverPalette?.colors[0];
-    const [haloR, haloG, haloB] = coverPalette
-        ? colorWithLightness(coverPalette.colors[0], 46 + globalIntensity * 18, 1.25)
-        : hslToRgb(Math.max(0, bgHue - 18), 88, 48 + globalIntensity * 16);
-    const accentX = cx + Math.cos(t * 0.17 + 1.6) * W * 0.34;
-    const accentY = cy + Math.sin(t * 0.15 + 0.7) * H * 0.26;
-    const [ar, ag, ab] = coverPalette
-        ? colorWithLightness(accentColor, 50 + bassPulse * 20, 1.28)
-        : hslToRgb(330 - climaxLevel * 120 + Math.sin(t * 0.1) * 28, 88, 54 + bassPulse * 18);
-    const accentAlpha = 0.055 + bassPulse * 0.12 + climaxLevel * 0.07;
+    const whiteMix = 0;
+    let [haloR, haloG, haloB] = coverPalette
+        ? colorWithLightness(coverPalette.colors[0], 46, 1.45)
+        : hslToRgb(Math.max(0, bgHue - 18), 95, 50);
+    haloR += (255 - haloR) * whiteMix;
+    haloG += (255 - haloG) * whiteMix;
+    haloB += (255 - haloB) * whiteMix;
+    // accent 光球：偏向画面右侧，与主光球错开，呈现两坨不同色的光
+    const accentX = cx + W * 0.12 + Math.cos(t * 0.17 + 1.6) * W * 0.06;
+    const accentY = cy + Math.sin(t * 0.15 + 0.7) * H * 0.08;
+    let [ar, ag, ab] = coverPalette
+        ? colorWithLightness(accentColor, 48, 1.48)
+        : hslToRgb(330 - climaxLevel * 120 + Math.sin(t * 0.1) * 28, 95, 54);
+    ar += (255 - ar) * whiteMix;
+    ag += (255 - ag) * whiteMix;
+    ab += (255 - ab) * whiteMix;
+    const accentAlpha = 0.16 + glowNorm * 0.24;
+    const accentSigma = 0.19 + glowNorm * 0.10;
 
     renderGlowLayer(
         W, H,
-        driftX, driftY, haloR / 255, haloG / 255, haloB / 255, ambientAlpha, 0.24,
-        accentX, accentY, ar / 255, ag / 255, ab / 255, accentAlpha, 0.17
+        driftX, driftY, haloR / 255, haloG / 255, haloB / 255, ambientAlpha, ambientSigma,
+        accentX, accentY, ar / 255, ag / 255, ab / 255, accentAlpha, accentSigma
     );
 
-    const coreR = innerRadius + bassPulse * maxRadius * 0.35 + climaxLevel * 25 + beatEnergy * 34 + Math.sin(t * 3) * 3 * bassPulse;
+    // 圆盘只跟低音节奏跳动；整体能量呼吸交给背景光晕（glowEnv），两者解耦
+    const coreR = innerRadius + bassPulse * maxRadius * 0.48 + beatEnergy * 46 + Math.sin(t * 3) * 3 * bassPulse;
     const coreHue = 210 - bassPulse * 280 - climaxLevel * 80;
     const [cr, cg, cb] = hslToRgb(Math.max(0, coreHue), 95, 62);
 
@@ -164,7 +186,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
     ctx.fill();
     ctx.strokeStyle = `rgba(${Math.round(cr)},${Math.round(cg)},${Math.round(cb)},${0.2 + bassPulse * 0.45 + beatEnergy * 0.35})`;
     ctx.lineWidth = 1.2 + bassPulse * 3 + beatEnergy * 2.2;
-    ctx.shadowBlur = 18 + bassPulse * 40 + beatEnergy * 28;
+    ctx.shadowBlur = 14 + bassPulse * 12 + beatEnergy * 10;
     ctx.shadowColor = `rgba(${Math.round(cr)},${Math.round(cg)},${Math.round(cb)},0.55)`;
     ctx.stroke();
     ctx.restore();
@@ -179,7 +201,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         ctx.arc(cx, cy, radius, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${Math.round(wr)},${Math.round(wg)},${Math.round(wb)},${wave.life * 0.42})`;
         ctx.lineWidth = 2 + wave.life * 5;
-        ctx.shadowBlur = 28 * wave.life;
+        ctx.shadowBlur = 16 * wave.life;
         ctx.shadowColor = `rgba(${Math.round(wr)},${Math.round(wg)},${Math.round(wb)},${wave.life * 0.55})`;
         ctx.stroke();
         ctx.restore();
@@ -228,7 +250,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
 
             const hue = 215 - (amplitude * 2.1 + climaxLevel * 1.8) * 215;
             const sat = 82 + climaxLevel * 18;
-            const light = 42 + amplitude * 35 + climaxLevel * 28;
+            const light = 42 + amplitude * 28 + climaxLevel * 10;
             const [r, g, b] = hslToRgb(Math.max(0, hue), Math.min(100, sat), Math.min(95, light));
 
             const sx = cx + Math.cos(angle) * startR;
@@ -241,7 +263,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             ctx.save();
             ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.55)`;
             ctx.lineWidth = 2.0 + amplitude * 4.5 + climaxLevel * 4.0;
-            ctx.shadowBlur = 16 + climaxLevel * 30 + amplitude * 16;
+            ctx.shadowBlur = 8 + amplitude * 8;
             ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},${0.45 + climaxLevel * 0.4})`;
             ctx.lineCap = 'round';
             ctx.beginPath();
@@ -267,8 +289,6 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
                     ctx.globalAlpha = 0.12 + climaxLevel * 0.12;
                     ctx.strokeStyle = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.45)`;
                     ctx.lineWidth = 1.2 + amplitude * 2.5;
-                    ctx.shadowBlur = 10 + climaxLevel * 16;
-                    ctx.shadowColor = `rgba(${Math.round(r)},${Math.round(g)},${Math.round(b)},0.25)`;
                     ctx.lineCap = 'round';
                     ctx.beginPath();
                     ctx.moveTo(mirrorSx, mirrorSy);
@@ -296,7 +316,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
             ctx.save();
             ctx.strokeStyle = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.4 + climaxLevel * 0.3})`;
             ctx.lineWidth = 2.5 + rawVal * 4.0;
-            ctx.shadowBlur = 22 + climaxLevel * 36;
+            ctx.shadowBlur = 12 + rawVal * 8;
             ctx.shadowColor = `rgba(${Math.round(hr)},${Math.round(hg)},${Math.round(hb)},${0.5 + climaxLevel * 0.35})`;
             ctx.lineCap = 'round';
             ctx.beginPath();
@@ -309,7 +329,7 @@ export function draw(ctx, W, H, cx, cy, frequencyData, coverPalette, t) {
         ctx.save();
         ctx.strokeStyle = `rgba(255,255,255,${0.03 + climaxLevel * 0.09 + globalIntensity * 0.06})`;
         ctx.lineWidth = 1.8;
-        ctx.shadowBlur = 20 + climaxLevel * 35;
+        ctx.shadowBlur = 14;
         ctx.shadowColor = `rgba(140,210,255,${0.25 + climaxLevel * 0.4})`;
         ctx.beginPath();
         for (let i = 0; i <= NUM_LINES; i++) {
