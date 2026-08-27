@@ -51,4 +51,3 @@ There are no tests, linting, or type-checking configured.
 - Audio format support: mp3, wav, ogg, flac, aac, mfa, wma, webm, opus.
 - `src/shims/empty.js` stubs Node.js modules (`fs`, `path`, `stream`) so `jsmediatags` bundles for browser builds.
 - User-facing strings are in Simplified Chinese.
-- File `开发计划-纯笔记，禁止提交.md` is developer notes, not for commit.

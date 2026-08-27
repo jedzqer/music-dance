@@ -5,6 +5,7 @@ import { resetParticles } from './particles.js';
 import { resetBeatDetector } from './beatdetector.js';
 import { resetRenderer } from './renderer.js';
 import { Playlist } from './playlist.js';
+import { VisualizerManager } from './visualizerManager.js';
 
 const state = {
     audioContext: null,
@@ -30,7 +31,8 @@ const state = {
     playbackRate: 1,
     crossfadeDuration: 0,       // 0=关闭, 2/3/5 秒
     autoPauseDuration: 0,       // 0=关闭, 3/5/10 秒
-    vizStyle: 'radial',         // 'radial' | 'wave'
+    vizStyle: 'radial',         // 'radial' | 'wave' | custom id
+    visualizersList: [],
     _crossfadeActive: false,
     _secondaryElement: null,
     _secondarySource: null,
@@ -45,6 +47,8 @@ const state = {
     _monitorStream: null,
     _monitorSource: null
 };
+
+export let vizManager = null;
 
 const els = {};
 
@@ -175,8 +179,48 @@ export function init() {
     els.homeSearch = document.getElementById('home-search');
     els.vizSwitcherBtn = document.getElementById('viz-switcher-btn');
     els.vizSwitcherPanel = document.getElementById('viz-switcher-panel');
+    els.vizSwitcherList = document.getElementById('viz-switcher-list');
+    els.vizImportBtn = document.getElementById('viz-import-btn');
+    els.vizOpenFolderBtn = document.getElementById('viz-open-folder-btn');
+    els.vizReloadBtn = document.getElementById('viz-reload-btn');
     els.monitorBtn = document.getElementById('monitor-btn');
     els.titleBar = document.getElementById('title-bar');
+
+    // Init Visualizer Manager
+    vizManager = new VisualizerManager({
+        container: document.body,
+        onNativeUIChange: (uiState) => {
+            if (els.controls) {
+                els.controls.style.display = uiState.controls ? '' : 'none';
+            }
+            if (els.lyricsPanel) {
+                els.lyricsPanel.style.display = uiState.lyrics ? '' : 'none';
+            }
+            if (els.progressContainer) {
+                els.progressContainer.style.display = uiState.progressBar ? '' : 'none';
+            }
+            if (els.coverArt) {
+                els.coverArt.style.display = uiState.coverArt ? '' : 'none';
+            }
+        },
+        onControlsAction: (method, args) => {
+            if (method === 'play') handlePlayPause();
+            else if (method === 'pause') handlePlayPause();
+            else if (method === 'togglePlay') handlePlayPause();
+            else if (method === 'next') handleNext();
+            else if (method === 'prev') handlePrevious();
+            else if (method === 'seek' && args[0] !== undefined) {
+                if (state.audioElement) {
+                    state.audioElement.currentTime = args[0];
+                    updateProgressBar();
+                }
+            } else if (method === 'setVolume' && args[0] !== undefined) {
+                const vol = Math.max(0, Math.min(100, args[0] * 100));
+                els.volumeSlider.value = vol;
+                handleVolume();
+            }
+        }
+    });
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
@@ -203,13 +247,16 @@ export function init() {
     els.homeSearch.addEventListener('input', handleHomeSearch);
     els.vizSwitcherBtn?.addEventListener('click', () => toggleVizSwitcherPanel());
     els.vizSwitcherPanel?.querySelector('.viz-switcher-close')?.addEventListener('click', () => toggleVizSwitcherPanel(false));
-    els.vizSwitcherPanel?.addEventListener('click', handleVizSwitcherClick);
+    els.vizImportBtn?.addEventListener('click', handleImportVisualizer);
+    els.vizOpenFolderBtn?.addEventListener('click', handleOpenVisualizersFolder);
+    els.vizReloadBtn?.addEventListener('click', loadVisualizersList);
     els.monitorBtn?.addEventListener('click', handleMonitorMode);
     document.addEventListener('click', handleOutsideClick);
 
     restoreVolume();
     restoreLastFolder();
     restoreSettings();
+    loadVisualizersList();
 }
 
 function setPlayIcon(playing) {
@@ -359,6 +406,13 @@ function updateLyricsHighlight(currentTime) {
     if (idx >= 0 && idx < lyricsLineElements.length) {
         currentActiveLyricsEl = lyricsLineElements[idx];
         currentActiveLyricsEl.classList.add('active');
+        if (vizManager && lines[idx]) {
+            vizManager.notifyLyricsUpdate({
+                currentLine: lines[idx].text,
+                currentIndex: idx,
+                lines: lines
+            });
+        }
     }
 }
 
@@ -483,6 +537,15 @@ async function loadFile(file, filePath) {
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
 
+        const trackMeta = {
+            title: file.name.replace(/\.[^.]+$/, ''),
+            artist: '',
+            album: '',
+            duration: 0,
+            coverUrl: null,
+            coverPalette: null
+        };
+
         loadEmbeddedLyrics(file).then(embeddedLoaded => {
             if (!embeddedLoaded && state.autoLoadLrc && filePath) {
                 return tryLoadExternalLrc(filePath);
@@ -491,16 +554,27 @@ async function loadFile(file, filePath) {
         }).then(anyLoaded => {
             if (!anyLoaded) renderLyrics();
         }).catch(() => renderLyrics());
+
         loadCoverArt(file, filePath).then((picture) => {
+            trackMeta.coverUrl = state.coverUrl;
             return loadCoverPalette(file, picture);
         }).then((palette) => {
-            if (palette) state.coverPalette = palette;
-        }).catch(() => {});
+            if (palette) {
+                state.coverPalette = palette;
+                trackMeta.coverPalette = palette;
+            }
+            if (vizManager) vizManager.notifyTrackChange(trackMeta);
+        }).catch(() => {
+            if (vizManager) vizManager.notifyTrackChange(trackMeta);
+        });
 
         if (state.audioContext.state === 'suspended') await state.audioContext.resume();
         await state.audioElement.play();
         state.isPlaying = true;
         setPlayIcon(true);
+        if (vizManager) {
+            vizManager.notifyStateChange({ isPlaying: true, volume: els.volumeSlider.value / 100 });
+        }
 
         els.homePage.classList.add('hidden');
         els.controls.classList.add('visible');
@@ -1187,7 +1261,7 @@ function toggleVizSwitcherPanel(show) {
 
 function positionVizSwitcherPanel() {
     const btnRect = els.vizSwitcherBtn.getBoundingClientRect();
-    const panelWidth = Math.min(320, window.innerWidth * 0.8);
+    const panelWidth = Math.min(380, window.innerWidth * 0.9);
     const gap = 10;
     let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
     left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
@@ -1196,18 +1270,173 @@ function positionVizSwitcherPanel() {
     els.vizSwitcherPanel.style.width = panelWidth + 'px';
 }
 
-function syncVizSwitcherUI() {
-    document.querySelectorAll('[data-viz]').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.viz === state.vizStyle);
+export async function loadVisualizersList() {
+    const defaultList = [
+        {
+            id: 'radial',
+            name: '径向频谱',
+            author: 'MusicDance',
+            description: '经典同心圆发光粒子径向频谱（核心内置）',
+            icon: '◎',
+            isBuiltIn: true,
+            isLocked: true
+        }
+    ];
+
+    if (window.electronAPI?.listVisualizers) {
+        try {
+            const externalList = await window.electronAPI.listVisualizers();
+            state.visualizersList = [...defaultList, ...externalList];
+        } catch (e) {
+            console.error('加载外置可视化列表失败:', e);
+            state.visualizersList = defaultList;
+        }
+    } else {
+        state.visualizersList = [
+            ...defaultList,
+            {
+                id: 'wave',
+                name: '波浪线条',
+                author: 'MusicDance',
+                description: '优雅的多层动态波浪音频可视化效果',
+                icon: '〜',
+                isBuiltIn: true,
+                isLocked: false
+            }
+        ];
+    }
+
+    renderVizSwitcherList();
+}
+
+function renderVizSwitcherList() {
+    if (!els.vizSwitcherList) return;
+    els.vizSwitcherList.innerHTML = '';
+
+    state.visualizersList.forEach(item => {
+        const option = document.createElement('div');
+        option.className = 'viz-switcher-option';
+        if (state.vizStyle === item.id) {
+            option.classList.add('active');
+        }
+
+        const leftDiv = document.createElement('div');
+        leftDiv.className = 'viz-option-left';
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'viz-option-icon';
+        iconSpan.textContent = item.icon || '✨';
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'viz-option-info';
+
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'viz-option-label';
+        labelSpan.textContent = item.name || item.id;
+
+        const descSpan = document.createElement('span');
+        descSpan.className = 'viz-option-desc';
+        descSpan.textContent = item.description || (item.author ? `作者: ${item.author}` : '');
+
+        infoDiv.appendChild(labelSpan);
+        if (descSpan.textContent) infoDiv.appendChild(descSpan);
+
+        leftDiv.appendChild(iconSpan);
+        leftDiv.appendChild(infoDiv);
+        option.appendChild(leftDiv);
+
+        if (item.isLocked) {
+            const lockedTag = document.createElement('span');
+            lockedTag.className = 'viz-option-tag locked';
+            lockedTag.textContent = '锁定';
+            option.appendChild(lockedTag);
+        } else if (window.electronAPI?.deleteVisualizer && !item.isBuiltIn) {
+            const delBtn = document.createElement('button');
+            delBtn.className = 'viz-option-delete';
+            delBtn.title = '删除此可视化效果';
+            delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>';
+            delBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                if (confirm(`确定要删除可视化模版 “${item.name}” 吗？`)) {
+                    await window.electronAPI.deleteVisualizer(item.id);
+                    if (state.vizStyle === item.id) {
+                        selectVisualizer('radial');
+                    }
+                    await loadVisualizersList();
+                }
+            });
+            option.appendChild(delBtn);
+        }
+
+        option.addEventListener('click', () => {
+            selectVisualizer(item.id);
+        });
+
+        els.vizSwitcherList.appendChild(option);
     });
 }
 
-function handleVizSwitcherClick(e) {
-    const option = e.target.closest('[data-viz]');
-    if (!option) return;
-    state.vizStyle = option.dataset.viz;
-    syncVizSwitcherUI();
+export async function selectVisualizer(vizId) {
+    state.vizStyle = vizId;
+    renderVizSwitcherList();
     persistSettings();
+
+    const selected = state.visualizersList.find(v => v.id === vizId) || { id: 'radial' };
+    if (vizManager) {
+        await vizManager.loadVisualizer(selected);
+    }
+}
+
+async function handleImportVisualizer() {
+    if (!window.electronAPI?.importVisualizerDialog) {
+        // Fallback for Web browser upload
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.html,.htm';
+        input.addEventListener('change', async () => {
+            const file = input.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const customId = `custom-${Date.now()}`;
+                const customItem = {
+                    id: customId,
+                    name: file.name.replace(/\.[^.]+$/, ''),
+                    description: '用户上传的单文件模板',
+                    icon: '📄',
+                    htmlContent: text
+                };
+                state.visualizersList.push(customItem);
+                renderVizSwitcherList();
+                selectVisualizer(customId);
+                showError('可视化效果已导入');
+            } catch (err) {
+                showError('读取可视化文件失败');
+            }
+        });
+        input.click();
+        return;
+    }
+
+    try {
+        const res = await window.electronAPI.importVisualizerDialog();
+        if (res && res.success) {
+            await loadVisualizersList();
+            selectVisualizer(res.id);
+            showError('可视化效果导入成功！');
+        }
+    } catch (e) {
+        console.error('导入可视化失败:', e);
+        showError('导入失败，请检查文件格式');
+    }
+}
+
+async function handleOpenVisualizersFolder() {
+    if (!window.electronAPI?.openVisualizersFolder) {
+        showError('仅在桌面客户端中支持打开文件夹');
+        return;
+    }
+    await window.electronAPI.openVisualizersFolder();
 }
 
 function syncSettingsUI() {

@@ -1,0 +1,8 @@
+{
+  "id": "boilerplate",
+  "name": "极简示例模板",
+  "version": "1.0.0",
+  "author": "MusicDance",
+  "description": "供开发者参考与二次开发的极简柱状频谱可视化模板",
+  "icon": "✨"
+}

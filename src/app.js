@@ -1,6 +1,5 @@
-import { init, getState, getEls, updateProgressBar, showHomePage } from './controls.js';
+import { init, getState, getEls, updateProgressBar, showHomePage, vizManager } from './controls.js';
 import { draw as drawRadial } from './renderer.js';
-import { draw as drawWave } from './waveRenderer.js';
 import { initGlowLayer, resizeGlowLayer } from './glowlayer.js';
 
 let W, H, cx, cy;
@@ -25,10 +24,34 @@ function loop(ts) {
     }
     if (!s.isDraggingProgress) updateProgressBar();
 
-    if (s.vizStyle === 'wave') {
-        drawWave(els.ctx, W, H, cx, cy, s.frequencyData, s.coverPalette, ts * 0.001);
-    } else {
+    if (s.vizStyle === 'radial') {
+        // Built-in Radial Mode
         drawRadial(els.ctx, W, H, cx, cy, s.frequencyData, s.coverPalette, ts * 0.001);
+    } else {
+        // Clear background canvas when custom/iframe visualizer is active
+        els.ctx.clearRect(0, 0, W, H);
+    }
+
+    // Dispatch frame to active visualizer sandbox (if any)
+    if (vizManager && s.vizStyle !== 'radial') {
+        vizManager.notifyFrame({
+            frequencyData: s.frequencyData,
+            timeDomainData: s.timeDomainData,
+            timestamp: ts * 0.001,
+            playback: {
+                currentTime: s.audioElement ? s.audioElement.currentTime : 0,
+                duration: s.audioElement ? s.audioElement.duration : 0,
+                isPlaying: s.isPlaying,
+                volume: els.volumeSlider ? els.volumeSlider.value / 100 : 0.8
+            },
+            dimensions: {
+                width: W,
+                height: H,
+                cx,
+                cy,
+                dpr: window.devicePixelRatio || 1
+            }
+        });
     }
 }
 

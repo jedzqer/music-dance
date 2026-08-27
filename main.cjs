@@ -1,12 +1,53 @@
-const { app, BrowserWindow, ipcMain, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const extractZip = require('extract-zip');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow;
 
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+const visualizersDir = path.join(app.getPath('userData'), 'visualizers');
+
+function ensureVisualizersDir() {
+  if (!fs.existsSync(visualizersDir)) {
+    fs.mkdirSync(visualizersDir, { recursive: true });
+  }
+
+  // Release default templates if not present
+  const defaultPresetsDir = path.join(__dirname, 'src/presets');
+  if (fs.existsSync(defaultPresetsDir)) {
+    try {
+      const presets = ['wave', 'boilerplate'];
+      for (const preset of presets) {
+        const srcPreset = path.join(defaultPresetsDir, preset);
+        const destPreset = path.join(visualizersDir, preset);
+        if (fs.existsSync(srcPreset) && !fs.existsSync(destPreset)) {
+          copyFolderRecursiveSync(srcPreset, destPreset);
+        }
+      }
+    } catch (e) {
+      console.warn('释放预设可视化失败:', e);
+    }
+  }
+}
+
+function copyFolderRecursiveSync(source, target) {
+  if (!fs.existsSync(target)) {
+    fs.mkdirSync(target, { recursive: true });
+  }
+  const files = fs.readdirSync(source);
+  for (const file of files) {
+    const curSource = path.join(source, file);
+    const curTarget = path.join(target, file);
+    if (fs.lstatSync(curSource).isDirectory()) {
+      copyFolderRecursiveSync(curSource, curTarget);
+    } else {
+      fs.copyFileSync(curSource, curTarget);
+    }
+  }
+}
 
 function loadSettings() {
   try {
@@ -339,3 +380,114 @@ ipcMain.handle('get-desktop-sources', async () => {
   const sources = await desktopCapturer.getSources({ types: ['window', 'screen'] });
   return sources.map(s => ({ id: s.id, name: s.name, display_id: s.display_id }));
 });
+
+// ─── Visualizer Management IPC ───
+ipcMain.handle('list-visualizers', async () => {
+  ensureVisualizersDir();
+  const list = [];
+
+  try {
+    const entries = await fs.promises.readdir(visualizersDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const dirPath = path.join(visualizersDir, entry.name);
+        const indexPath = path.join(dirPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          let manifest = {
+            id: entry.name,
+            name: entry.name,
+            author: 'Custom',
+            description: '',
+            icon: '✨'
+          };
+          const manifestPath = path.join(dirPath, 'manifest.json');
+          if (fs.existsSync(manifestPath)) {
+            try {
+              const manifestContent = JSON.parse(await fs.promises.readFile(manifestPath, 'utf-8'));
+              manifest = { ...manifest, ...manifestContent, id: entry.name };
+            } catch (_) {}
+          }
+          list.push({
+            ...manifest,
+            path: dirPath,
+            entryUrl: `file://${indexPath.replace(/\\/g, '/')}`,
+            isBuiltIn: false
+          });
+        }
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.html')) {
+        const filePath = path.join(visualizersDir, entry.name);
+        const nameWithoutExt = path.basename(entry.name, path.extname(entry.name));
+        list.push({
+          id: nameWithoutExt,
+          name: nameWithoutExt,
+          author: 'Custom',
+          description: '单 HTML 可视化模板',
+          icon: '📄',
+          path: filePath,
+          entryUrl: `file://${filePath.replace(/\\/g, '/')}`,
+          isBuiltIn: false
+        });
+      }
+    }
+  } catch (err) {
+    console.error('获取可视化列表失败:', err);
+  }
+
+  return list;
+});
+
+ipcMain.handle('open-visualizers-folder', async () => {
+  ensureVisualizersDir();
+  await shell.openPath(visualizersDir);
+});
+
+ipcMain.handle('import-visualizer-dialog', async () => {
+  ensureVisualizersDir();
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '导入自定义可视化文件',
+    filters: [
+      { name: '可视化包与网页', extensions: ['zip', 'html', 'htm'] }
+    ],
+    properties: ['openFile']
+  });
+
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const filePath = result.filePaths[0];
+  const ext = path.extname(filePath).toLowerCase();
+  const baseName = path.basename(filePath, ext);
+
+  if (ext === '.zip') {
+    const targetDir = path.join(visualizersDir, baseName);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    await extractZip(filePath, { dir: targetDir });
+    return { success: true, id: baseName };
+  } else if (ext === '.html' || ext === '.htm') {
+    const targetFile = path.join(visualizersDir, path.basename(filePath));
+    await fs.promises.copyFile(filePath, targetFile);
+    return { success: true, id: baseName };
+  }
+  return null;
+});
+
+ipcMain.handle('delete-visualizer', async (event, vizId) => {
+  ensureVisualizersDir();
+  const targetDir = path.join(visualizersDir, vizId);
+  const targetHtml = path.join(visualizersDir, `${vizId}.html`);
+
+  try {
+    if (fs.existsSync(targetDir)) {
+      await fs.promises.rm(targetDir, { recursive: true, force: true });
+      return true;
+    }
+    if (fs.existsSync(targetHtml)) {
+      await fs.promises.unlink(targetHtml);
+      return true;
+    }
+  } catch (err) {
+    console.error('删除可视化失败:', err);
+  }
+  return false;
+});
+

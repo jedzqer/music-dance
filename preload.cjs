@@ -17,5 +17,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   windowClose: () => ipcRenderer.send('window-close'),
   windowToggleFullscreen: () => ipcRenderer.send('window-toggle-fullscreen'),
   onFullscreenChange: (callback) => ipcRenderer.on('fullscreen-changed', (_event, value) => callback(value)),
-  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources')
+  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
+  listVisualizers: () => ipcRenderer.invoke('list-visualizers'),
+  openVisualizersFolder: () => ipcRenderer.invoke('open-visualizers-folder'),
+  importVisualizerDialog: () => ipcRenderer.invoke('import-visualizer-dialog'),
+  deleteVisualizer: (vizId) => ipcRenderer.invoke('delete-visualizer', vizId)
 });
