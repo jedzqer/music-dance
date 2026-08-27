@@ -1,6 +1,11 @@
-# MusicDance 可视化预设编写指南
+# MusicDance 可视化预设开发指南
 
-本文档指导你（人类或 AI）如何为 MusicDance 编写可视化预设（Preset）。预设本质上是运行在沙箱 iframe 中的一份标准网页，通过宿主注入的 `window.$musicDance` SDK 获取音频数据并实时渲染。
+本文档指导开发者与 **AI AGENT** 如何为 MusicDance 制作独具特色的可视化预设（Preset）。预设本质上是运行在沙箱 iframe 中的标准 Web 页面，通过宿主注入的 `window.$musicDance` SDK 获取高质量音频特征并实时渲染。
+
+> 📖 **快速导航**：
+> - [详细接口清单与全景文档 (API.md)](./API.md) — 逐项查看 SDK 暴露的全部属性、每帧细分指标、事件与反向控制方法。
+> - [AI 助手协作指南 (AGENTS.md)](./AGENTS.md) — 了解预设目录职责、约束与最佳实践。
+> - [极简全面示例模板 (boilerplate/)](./boilerplate/) — 包含几乎所有 SDK 功能演示的脚手架代码。
 
 ---
 
@@ -8,42 +13,43 @@
 
 ```
 src/presets/
-├── README.md            ← 本指南
+├── README.md            ← 本指南（架构、规范与开发指引）
+├── API.md               ← 宿主暴露的所有接口逐项详细文档
 ├── AGENTS.md            ← 面向 AI 助手的目录级指导
 ├── radial.js            ← 径向频谱（核心内置效果的独立参考实现，主程序锁定使用）
-├── wave/                ← 波浪线条（外置模板，可删除/修改）
+├── wave/                ← 波浪线条（外置模板示例，可删除/修改）
 │   ├── index.html
 │   └── manifest.json
-└── boilerplate/         ← 极简开发示例模板（推荐以此为起点）
+└── boilerplate/         ← 完整功能示例模板（推荐以此为起点）
     ├── index.html
     └── manifest.json
 ```
 
-| 预设 | 类型 | 可否删除 |
-|------|------|----------|
-| 径向频谱 | 内置（锁定） | 否 |
-| 波浪线条 | 外置（首次启动释放到用户目录） | 是 |
-| 极简示例模板 | 外置 | 是 |
+| 预设 | 类型 | 可否删除 | 说明 |
+|------|------|----------|------|
+| 径向频谱 | 内置（锁定） | 否 | 核心内置视觉实现参考 |
+| 波浪线条 | 外置模板 | 是 | 动态波浪与节拍粒子效果示例 |
+| 示例模板 (boilerplate) | 外置模板 | 是 | 覆盖全部 SDK 接口特性的全面示例 |
 
 ---
 
 ## 预设文件规范
 
-一个预设可以是：
+预设支持以下两种形式分发与运行：
 
-### 1. 单 HTML 文件（最简单）
-单个 `.html` 文件，所有样式与脚本内联。上传后以文件名作为预设 ID。
+### 1. 单 HTML 文件（快速轻量）
+单个 `.html` 文件，所有样式与脚本内联。在播放器中点击“导入”即可加载。
 
-### 2. 文件夹 / ZIP 扩展包（推荐，支持资源文件）
+### 2. 文件夹 / ZIP 扩展包（推荐，支持多资源）
 ```
 my-visualizer/
-├── index.html          ← 必须，入口文件
-├── manifest.json       ← 可选，元数据
-├── preview.png         ← 可选，缩略图
-└── assets/             ← 可选，字体/图片/着色器等相对路径资源
+├── index.html          ← 必须，入口页面
+├── manifest.json       ← 可选，元数据描述文件
+├── preview.png         ← 可选，效果预览缩略图
+└── assets/             ← 可选，字体/图片/着色器等相对路径静态资源
 ```
 
-**manifest.json 字段：**
+**manifest.json 规范：**
 
 ```json
 {
@@ -55,154 +61,116 @@ my-visualizer/
 }
 ```
 
-> 注意：`id` 由文件夹名决定，无需在 manifest 中声明。`name`/`description`/`author`/`icon` 会显示在软件"可视化风格与管理"面板中。若省略 manifest，面板将使用文件夹名与默认图标。
+> 💡 **提示**：预设 `id` 由文件夹名决定。`manifest.json` 中的字段会展示在播放器“可视化风格与管理”面板中。如果未提供 manifest，面板会自动采用文件夹名称和默认图标。
 
 ---
 
-## 运行环境与约束
+## 运行环境与安全约束
 
-预设运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 中。SDK 版本为 `1.0.0`，帧数据版本为 `schemaVersion: 1`。
+预设运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 安全沙箱中：
 
-- ✅ 可以使用任意前端技术：Canvas 2D、WebGL、SVG、DOM/CSS 动画。
-- ✅ 可以加载相对路径资源（图片、字体、着色器文件）。
-- ❌ **不能**访问父页面 DOM、`electronAPI` 或宿主内部模块（如 `renderer.js`）。
-- ❌ 不要依赖 `localStorage` 跨会话共享数据（沙箱中不可靠）。
-- ⚠️ 页面应在 `musicdance-ready` 事件后注册 SDK：
+- ✅ **支持任意现代 Web 前端技术**：Canvas 2D、WebGL、Three.js、PixiJS、SVG、CSS3 3D、Web Audio API 等。
+- ✅ **支持相对路径资源加载**：可引用同目录下的图片、3D 模型、音频或着色器文件。
+- ❌ **隔离约束**：预设无法直接访问父页面 DOM、`electronAPI` 或宿主内部私有模块，只能通过 `window.$musicDance` 与宿主进行安全的单向/双向交互。
+- ⚠️ **初始化标准写法**：
 
-```js
+```javascript
 function init() {
   if (!window.$musicDance || window.__presetStarted) return;
   window.__presetStarted = true;
-  window.$musicDance.onFrame(frame => { /* 绘制 */ });
+  
+  // 注册音频帧监听，由宿主渲染管线驱动
+  window.$musicDance.onFrame(frame => {
+    // 绘图逻辑...
+  });
 }
-if (window.$musicDance) init();
-else window.addEventListener('musicdance-ready', init, { once: true });
+
+if (window.$musicDance) {
+  init();
+} else {
+  window.addEventListener('musicdance-ready', init, { once: true });
+}
 ```
-- 渲染循环由宿主驱动，`onFrame` 每帧调用一次；不要创建独立的高频动画循环。
 
 ---
 
-## SDK 完整参考（`window.$musicDance`）
+## SDK 核心功能速查
 
-宿主在 iframe 加载完成后注入该全局对象。**建议在脚本开头判断其存在**：
+详细的数据结构定义、字段范围与子对象请查阅 [**API.md 接口参考文档**](./API.md)。
 
-```js
-if (window.$musicDance) {
-  // ...
-}
-```
+### 1. 核心事件订阅
 
-### 一、事件订阅
-
-#### `onFrame(callback)` —— 每帧音频数据（约 60fps）
-每帧调用一次，参数为帧对象：
-
-```js
-window.$musicDance.onFrame((frame) => {
-  const {
-    schemaVersion,   // 当前为 1
-    frequencyData,   // 兼容字段：Uint8Array (0-255)
-    timeDomainData,  // 兼容字段：Uint8Array (0-255)
-    frequency,       // { values, normalized, fftSize, binCount, binHz, sampleRate }
-    timeDomain,      // { values, rms, peak }
-    bands,            // { bass, lowMid, mid, highMid, treble, energy }
-    beat,             // { hit, energy, pulse, lastBeatTime }
-    audioTime,        // 当前音频播放时间（秒）
-    timestamp,       // number，秒
-    playback,        // { currentTime, duration, isPlaying, volume(0-1) }
-    dimensions       // { width, height, cx, cy, dpr }
-  } = frame;
+```javascript
+// 每帧高频音频数据（约 60 ~ 144fps）
+const unsubscribeFrame = window.$musicDance.onFrame((frame) => {
+  const { frequencyData, timeDomainData, frequency, bands, beat, playback, dimensions } = frame;
+  // bands: { bass, lowMid, mid, highMid, treble, energy }
+  // beat: { hit, pulse, energy }
 });
-```
 
-TypedArray 只应在当前回调内读取，宿主会复用并在下一帧原地更新。未播放时数组可能为空；预设必须支持空数组和暂停状态。订阅函数返回取消订阅函数；SDK 还提供 `version`、`apiVersion` 和 `capabilities`，新增字段只追加不改名。
-
-#### `onTrackChange(callback)` —— 曲目切换
-```js
+// 曲目切换与封面色调
 window.$musicDance.onTrackChange((track) => {
-  track.title;          // 曲名
-  track.artist;         // 艺术家（当前可能为空字符串）
-  track.album;          // 专辑（当前可能为空字符串）
-  track.coverUrl;       // 封面图 URL（data: 或 blob:，可能为 null）
-  track.coverPalette;   // 封面色板 { colors: [主色, 次色?] }，可能为 null
+  const { title, artist, album, coverUrl, coverPalette } = track;
 });
-```
 
-#### `onLyricsUpdate(callback)` —— 歌词同步高亮
-```js
+// 实时歌词高亮更新
 window.$musicDance.onLyricsUpdate((lyrics) => {
-  lyrics.currentLine;   // 当前句文本
-  lyrics.currentIndex;  // 当前句索引（-1 表示无）
-  lyrics.lines;         // 全部歌词 [{ time: 秒, text: string }]
+  const { currentLine, currentIndex, lines } = lyrics;
 });
-```
 
-#### `onStateChange(callback)` —— 播放状态变化
-```js
+// 播放器状态（播放/暂停/音量）
 window.$musicDance.onStateChange((state) => {
-  state.isPlaying;   // boolean
-  state.volume;      // 0-1
+  const { isPlaying, volume } = state;
 });
 ```
 
-新订阅会立即收到最近一次状态（如果存在）。
+### 2. 反向播放控制 (`controls`)
 
-### 二、反向控制（制作自定义播放控件）
+预设可内置沉浸式交互手势或自定义控制器：
 
-```js
-window.$musicDance.controls.play();               // 播放（若已播放则无操作）
-window.$musicDance.controls.pause();              // 暂停（若已暂停则无操作）
-window.$musicDance.controls.togglePlay();         // 播放/暂停切换
-window.$musicDance.controls.next();               // 下一首
-window.$musicDance.controls.prev();               // 上一首
-window.$musicDance.controls.seek(120);            // 跳转到 120 秒
-window.$musicDance.controls.setVolume(0.8);       // 音量 0-1
+```javascript
+window.$musicDance.controls.play();         // 开始播放
+window.$musicDance.controls.pause();        // 暂停播放
+window.$musicDance.controls.togglePlay();   // 播放/暂停切换
+window.$musicDance.controls.next();         // 下一曲
+window.$musicDance.controls.prev();         // 上一曲
+window.$musicDance.controls.seek(60);       // 跳转到指定秒数
+window.$musicDance.controls.setVolume(0.8); // 调节音量 (0~1)
 ```
 
-### 三、原生 UI 接管
+### 3. 原生 UI 接管 (`ui.setNativeUI`)
 
-**原生 UI 默认全部显示**。若你的预设需要全屏沉浸接管，调用：
+如果想实现纯净无干扰的全屏体验，可调用原生 UI 控制接口隐藏宿主默认部件（切换预设或按 `Esc` 会自动恢复）：
 
-```js
+```javascript
 window.$musicDance.ui.setNativeUI({
   controls: false,     // 隐藏底部控制栏
-  lyrics: false,       // 隐藏歌词面板
-  progressBar: false,  // 隐藏进度条
-  coverArt: false      // 隐藏悬浮封面
+  lyrics: false,       // 隐藏右侧歌词面板
+  progressBar: false,  // 隐藏底部进度条
+  coverArt: false      // 隐藏左上角专辑封面部件
 });
 ```
 
-- 未列出的项保持默认可见（`true`）。
-- 切换预设或返回主页时，原生 UI 自动恢复全部显示。
-- 无论隐藏多少 UI，用户按 `Esc` 始终能返回主页，不会被困在界面中。
+---
+
+## 开发建议与性能优化
+
+1. **起点推荐**：建议从 [`boilerplate/index.html`](./boilerplate/index.html) 起步，它集成了频谱条、波形图、五频段能量球、歌词、节拍粒子、封面色彩和反向控制等全量功能。
+2. **60 FPS 流畅保障**：
+   - 避免在 `onFrame` 内执行 DOM 操作（`innerHTML` 等）、频繁创建大对象或字符串拼接。
+   - 粒子数量建议控制在 200 ~ 500 以内；大数量渲染建议使用 WebGL / Instanced Mesh。
+3. **自适应视口**：
+   - 预设应监听 `window.addEventListener('resize', ...)` 并根据 `frame.dimensions` 调整 Canvas 分辨率与高分屏 DPR。
+4. **容错与空值兜底**：
+   - 音乐暂停或静音时，`frequencyData` 数组可能全为 0。
+   - 当无封面时，`coverPalette` 为 `null`。请确保有优雅的默认底色与待机动画。
 
 ---
 
-## 编写要点与性能建议
+## 安装、调试与测试
 
-1. **以 `boilerplate/index.html` 为起点**，它包含柱状频谱 + 歌词 + 封面色板的最小完整示例。
-2. **60fps 是硬指标**：`onFrame` 内的计算与绘制应轻量；避免每帧创建大对象、字符串拼接、频繁 DOM 操作。粒子数建议上限 200-300。
-3. **善用 `dimensions`**：窗口大小变化由你自行监听 `window.resize`，读取 `frame.dimensions` 或直接使用 `window.innerWidth/Height`。
-4. **颜色推荐取自 `track.coverPalette.colors`**，可让效果与封面主题一致。
-5. **频率分布**：`frequencyData` 前段为低频（低音鼓点），后段为高频。低音 bin 通常取前 16 个。
-6. **降级处理**：`frequencyData` 可能为空数组（未播放时），`coverPalette`/`coverUrl` 可能为 `null`，请做好空值兜底，保证预设"静置"时依然美观。
-7. 若引用了外部 CDN 资源，注意离线环境下无法加载——优先内联或使用相对路径。
-
----
-
-## 安装与测试
-
-1. **开发中**：直接编辑 `src/presets/<name>/index.html` 后，在软件面板点击"刷新"。
-2. **桌面端安装**：
-   - 通过软件面板"导入"按钮选择 `.zip` 或 `.html`；或
-   - 将文件夹复制到用户数据目录的 `visualizers/` 下（Windows 通常为 `%APPDATA%\MusicDance\visualizers\`，开发模式可能为 `%APPDATA%\music-dance\visualizers\`），再点击"刷新"。
-3. **浏览器模式**：面板"导入"仅支持单 `.html` 文件（ZIP 需桌面端）。
-
-## 常见问题
-
-| 问题 | 原因与解决 |
-|------|-----------|
-| 预设空白无反应 | 未判断 `window.$musicDance` 是否存在，或脚本报错；打开 DevTools 查看 iframe 控制台 |
-| 颜色不随封面变化 | 未在 `onTrackChange` 中读取 `coverPalette` |
-| 高 CPU/掉帧 | `onFrame` 内计算过重，或未使用 `requestAnimationFrame` 节流 DOM 更新 |
-| 原生 UI 不显示 | 上一预设调用了 `setNativeUI` 隐藏；切换预设会自动恢复，或手动调用 `setNativeUI({})` |
+1. **开发中调试**：直接编辑 `src/presets/<name>/index.html`，在播放器右上角点击“可视化”并在管理面板点击“刷新”即可热重载。按 `F12` 打开 DevTools 可定位 iframe 控制台日志。
+2. **桌面端安装到用户目录**：
+   - 将预设文件夹复制到用户数据目录下的 `visualizers/` 目录（Windows: `%APPDATA%\MusicDance\visualizers\`）；或
+   - 在播放器管理面板点击“导入”选择 `.zip` 或 `.html` 文件。
+3. **构建验证**：运行 `npm run build` 确保宿主构建正常。

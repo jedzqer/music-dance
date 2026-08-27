@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自定义可视化模板开发示例</title>
+    <title>MusicDance 全功能可视化预设开发示例</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            user-select: none;
         }
         body {
             width: 100vw;
             height: 100vh;
             overflow: hidden;
-            background: radial-gradient(circle at center, #1a1a2e 0%, #0f0f1b 100%);
+            background: #080812;
             color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
             display: flex;
             flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
         }
         #canvas {
             position: absolute;
@@ -29,110 +30,501 @@
             width: 100%;
             height: 100%;
             z-index: 1;
+            display: block;
         }
-        .info-panel {
+
+        /* 顶部曲目与封面面板 */
+        .top-panel {
+            position: relative;
+            z-index: 2;
+            margin-top: 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(18, 18, 32, 0.65);
+            padding: 12px 24px;
+            border-radius: 40px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            max-width: 90vw;
+        }
+        .cover-img {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: #202035;
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .cover-img.playing {
+            animation: rotateCover 16s linear infinite;
+        }
+        @keyframes rotateCover {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .track-meta {
+            display: flex;
+            flex-direction: column;
+            text-align: left;
+        }
+        .track-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 320px;
+        }
+        .track-artist {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 320px;
+        }
+
+        /* 居中歌词显示区 */
+        .center-stage {
             position: relative;
             z-index: 2;
             text-align: center;
             pointer-events: none;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 20px 40px;
-            border-radius: 16px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .track-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            padding: 0 20px;
         }
         .track-lyrics {
-            font-size: 16px;
-            color: #00d2ff;
-            min-height: 24px;
+            font-size: 26px;
+            font-weight: 600;
+            color: #00f2fe;
+            text-shadow: 0 0 20px rgba(0, 242, 254, 0.6), 0 2px 10px rgba(0, 0, 0, 0.8);
+            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .bands-indicator {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-top: 14px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        .band-item {
+            background: rgba(255, 255, 255, 0.06);
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .band-val {
+            color: #fa709a;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        /* 底部嵌入式反向控制栏与说明 */
+        .bottom-panel {
+            position: relative;
+            z-index: 2;
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .custom-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(20, 20, 35, 0.7);
+            padding: 8px 18px;
+            border-radius: 30px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .ctrl-btn {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
             transition: all 0.2s ease;
+            outline: none;
+        }
+        .ctrl-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: scale(1.08);
+        }
+        .ctrl-btn:active {
+            transform: scale(0.95);
+        }
+        .ctrl-btn.play-btn {
+            width: 38px;
+            height: 38px;
+            background: #4facfe;
+            color: #000;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .time-display {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            font-variant-numeric: tabular-nums;
+            margin: 0 4px;
+        }
+        .tips {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
 <body>
+    <!-- 渲染画布 -->
     <canvas id="canvas"></canvas>
-    
-    <div class="info-panel">
-        <div class="track-title" id="track-title">等待播放音乐...</div>
-        <div class="track-lyrics" id="track-lyrics">🎵</div>
+
+    <!-- 顶部曲目信息展示 -->
+    <div class="top-panel">
+        <img id="cover-img" class="cover-img" src="" alt="Cover" style="display: none;">
+        <div class="track-meta">
+            <div class="track-title" id="track-title">等待播放音乐...</div>
+            <div class="track-artist" id="track-artist">MusicDance SDK Boilerplate</div>
+        </div>
+    </div>
+
+    <!-- 居中歌词与五频段能量指标 -->
+    <div class="center-stage">
+        <div class="track-lyrics" id="track-lyrics">🎵 享受律动</div>
+        <div class="bands-indicator">
+            <div class="band-item">低音 Bass:<span id="b-bass" class="band-val">0.00</span></div>
+            <div class="band-item">中频 Mid:<span id="b-mid" class="band-val">0.00</span></div>
+            <div class="band-item">高频 Treble:<span id="b-treble" class="band-val">0.00</span></div>
+            <div class="band-item">响度 RMS:<span id="b-rms" class="band-val">0.00</span></div>
+        </div>
+    </div>
+
+    <!-- 底部示例自定义播放控制栏（演示 SDK 反向控制能力） -->
+    <div class="bottom-panel">
+        <div class="custom-controls">
+            <button class="ctrl-btn" id="btn-prev" title="上一首">⏮</button>
+            <button class="ctrl-btn play-btn" id="btn-toggle" title="播放/暂停">▶</button>
+            <button class="ctrl-btn" id="btn-next" title="下一首">⏭</button>
+            <span class="time-display" id="time-display">00:00 / 00:00</span>
+            <button class="ctrl-btn" id="btn-vol-down" title="音量 -10%">🔉</button>
+            <button class="ctrl-btn" id="btn-vol-up" title="音量 +10%">🔊</button>
+        </div>
+        <div class="tips">提示：点击画布或按空格键可切换播放/暂停，本模板演示了 SDK 的全量特性与接口</div>
     </div>
 
     <script>
         /**
-         * ==========================================
-         * MusicDance 可视化标准开发模板 (Boilerplate)
-         * ==========================================
-         * 
-         * 本页面在 MusicDance 提供的 iframe 沙箱中安全运行。
-         * 通过全局对象 window.$musicDance 与宿主程序实时交互。
+         * =========================================================================
+         * MusicDance 全功能可视化预设开发示例模板 (Comprehensive Boilerplate)
+         * =========================================================================
+         *
+         * 涵盖 SDK (window.$musicDance) 暴露的全部特性：
+         * 1. onFrame: 频域数据 (frequencyData/normalized)、时域波形 (timeDomainData/rms/peak)、
+         *             五频段能量分析 (bands: bass/lowMid/mid/highMid/treble/energy)、
+         *             节拍脉冲检测 (beat: hit/pulse/energy)、视口尺寸 (dimensions)
+         * 2. onTrackChange: 歌曲标题、艺术家、专辑、专辑封面图 (coverUrl)、封面主题色调 (coverPalette)
+         * 3. onLyricsUpdate: 当前歌词行 (currentLine)、当前行索引 (currentIndex)、完整歌词列表 (lines)
+         * 4. onStateChange: 播放/暂停状态 (isPlaying)、音量大小 (volume)
+         * 5. controls: 反向控制 play() / pause() / togglePlay() / next() / prev() / seek() / setVolume()
+         * 6. ui: 原生 UI 接管 setNativeUI()
          */
 
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const titleEl = document.getElementById('track-title');
-        const lyricsEl = document.getElementById('track-lyrics');
 
-        let W = 0, H = 0;
+        // DOM 元素缓存
+        const coverImg = document.getElementById('cover-img');
+        const titleEl = document.getElementById('track-title');
+        const artistEl = document.getElementById('track-artist');
+        const lyricsEl = document.getElementById('track-lyrics');
+        const timeDisplayEl = document.getElementById('time-display');
+        const btnToggle = document.getElementById('btn-toggle');
+        const btnPrev = document.getElementById('btn-prev');
+        const btnNext = document.getElementById('btn-next');
+        const btnVolDown = document.getElementById('btn-vol-down');
+        const btnVolUp = document.getElementById('btn-vol-up');
+
+        const bBass = document.getElementById('b-bass');
+        const bMid = document.getElementById('b-mid');
+        const bTreble = document.getElementById('b-treble');
+        const bRms = document.getElementById('b-rms');
+
+        let W = 0, H = 0, cx = 0, cy = 0;
+        let currentThemeColor = '#4facfe';
+        let secondaryColor = '#00f2fe';
+        let currentVolume = 0.8;
+        let particles = [];
+        let shockwaves = [];
+
         function resize() {
             W = canvas.width = window.innerWidth;
             H = canvas.height = window.innerHeight;
+            cx = W / 2;
+            cy = H / 2;
         }
         window.addEventListener('resize', resize);
         resize();
 
-        function initMusicDance() {
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '00:00';
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        // 节拍粒子生成器
+        function spawnBeatParticles(x, y, count = 16, color = '#fa709a') {
+            for (let i = 0; i < count; i++) {
+                if (particles.length >= 200) break;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 5;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    size: 2 + Math.random() * 4,
+                    life: 1.0,
+                    decay: 0.015 + Math.random() * 0.02,
+                    color
+                });
+            }
+        }
+
+        function initVisualizer() {
             if (window.__musicDancePresetInitialized || !window.$musicDance) return;
             window.__musicDancePresetInitialized = true;
-            // 1. 监听歌曲切换事件
-            window.$musicDance.onTrackChange((track) => {
-                titleEl.textContent = `${track.title || '未知曲目'} - ${track.artist || '未知艺术家'}`;
+
+            const sdk = window.$musicDance;
+            console.log(`[Boilerplate] Connected to MusicDance SDK v${sdk.version} (API v${sdk.apiVersion})`);
+
+            // ==========================================
+            // 1. 曲目元数据与封面色调联动 (onTrackChange)
+            // ==========================================
+            sdk.onTrackChange((track) => {
+                titleEl.textContent = track.title || '未知曲目';
+                artistEl.textContent = track.artist ? `${track.artist}${track.album ? ' - ' + track.album : ''}` : 'MusicDance 播放器';
+
+                if (track.coverUrl) {
+                    coverImg.src = track.coverUrl;
+                    coverImg.style.display = 'block';
+                } else {
+                    coverImg.style.display = 'none';
+                }
+
+                // 提取并应用封面主色调
+                if (track.coverPalette && track.coverPalette.colors && track.coverPalette.colors.length > 0) {
+                    currentThemeColor = track.coverPalette.colors[0];
+                    secondaryColor = track.coverPalette.colors[1] || track.coverPalette.colors[0];
+                } else {
+                    currentThemeColor = '#4facfe';
+                    secondaryColor = '#00f2fe';
+                }
             });
 
-            // 2. 监听歌词同步事件
-            window.$musicDance.onLyricsUpdate((lyrics) => {
+            // ==========================================
+            // 2. 歌词动态同步 (onLyricsUpdate)
+            // ==========================================
+            sdk.onLyricsUpdate((lyrics) => {
                 if (lyrics.currentLine) {
                     lyricsEl.textContent = lyrics.currentLine;
+                    lyricsEl.style.transform = 'scale(1.06)';
+                    setTimeout(() => { lyricsEl.style.transform = 'scale(1.0)'; }, 150);
+                } else {
+                    lyricsEl.textContent = '🎵';
                 }
             });
 
-            // 3. 监听每帧实时渲染数据 (60fps ~ 144fps)
-            window.$musicDance.onFrame((frame) => {
-                const { frequencyData, timeDomainData, beat, playback } = frame;
-                
-                // 清屏
-                ctx.clearRect(0, 0, W, H);
+            // ==========================================
+            // 3. 播放状态与音量变化 (onStateChange)
+            // ==========================================
+            sdk.onStateChange((state) => {
+                currentVolume = state.volume;
+                btnToggle.textContent = state.isPlaying ? '⏸' : '▶';
+                coverImg.classList.toggle('playing', !!state.isPlaying);
+            });
 
-                if (!frequencyData || frequencyData.length === 0) return;
+            // ==========================================
+            // 4. 逐帧渲染循环 (onFrame: 60fps ~ 144fps)
+            // ==========================================
+            sdk.onFrame((frame) => {
+                const { frequencyData, timeDomainData, bands, beat, playback, timestamp } = frame;
 
-                // 示例：绘制底部音频柱状条
-                const barCount = 48;
-                const barWidth = W / barCount;
-                const step = Math.floor(frequencyData.length / barCount);
+                // 更新时间与指标文本
+                if (playback) {
+                    timeDisplayEl.textContent = `${formatTime(playback.currentTime)} / ${formatTime(playback.duration)}`;
+                }
+                if (bands) {
+                    bBass.textContent = bands.bass.toFixed(2);
+                    bMid.textContent = bands.mid.toFixed(2);
+                    bTreble.textContent = bands.treble.toFixed(2);
+                }
+                if (frame.timeDomain) {
+                    bRms.textContent = frame.timeDomain.rms.toFixed(2);
+                }
 
-                for (let i = 0; i < barCount; i++) {
-                    const value = frequencyData[i * step] / 255;
-                    const barHeight = value * (H * 0.4);
+                // 清屏（带轻微拖尾）
+                ctx.fillStyle = 'rgba(8, 8, 18, 0.25)';
+                ctx.fillRect(0, 0, W, H);
 
-                    const grad = ctx.createLinearGradient(0, H - barHeight, 0, H);
-                    grad.addColorStop(0, '#00d2ff');
-                    grad.addColorStop(1, '#3a7bd5');
+                // --- A. 绘制中心节拍共振光球 ---
+                const bassPulse = beat ? beat.pulse : 0;
+                const baseRadius = Math.min(W, H) * 0.12;
+                const dynamicRadius = baseRadius * (1 + bassPulse * 0.4);
 
-                    ctx.fillStyle = grad;
-                    ctx.fillRect(i * barWidth + 2, H - barHeight, barWidth - 4, barHeight);
+                const centerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, dynamicRadius * 1.6);
+                centerGrad.addColorStop(0, currentThemeColor);
+                centerGrad.addColorStop(0.5, secondaryColor);
+                centerGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.save();
+                ctx.globalAlpha = 0.2 + bassPulse * 0.4;
+                ctx.fillStyle = centerGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, dynamicRadius * 1.6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                // --- B. 节拍触发冲击波与粒子 ---
+                if (beat && beat.hit) {
+                    shockwaves.push({
+                        r: dynamicRadius,
+                        maxR: Math.max(W, H) * 0.6,
+                        alpha: 0.8,
+                        color: secondaryColor
+                    });
+                    spawnBeatParticles(cx, cy, 20, secondaryColor);
+                }
+
+                // 绘制与更新冲击波
+                for (let i = shockwaves.length - 1; i >= 0; i--) {
+                    const sw = shockwaves[i];
+                    sw.r += 6;
+                    sw.alpha *= 0.95;
+                    if (sw.r >= sw.maxR || sw.alpha <= 0.02) {
+                        shockwaves.splice(i, 1);
+                        continue;
+                    }
+                    ctx.save();
+                    ctx.strokeStyle = sw.color;
+                    ctx.globalAlpha = sw.alpha;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, sw.r, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // 绘制与更新粒子
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= p.decay;
+                    if (p.life <= 0) {
+                        particles.splice(i, 1);
+                        continue;
+                    }
+                    ctx.save();
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.life;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                // --- C. 绘制中央时域波形线 (Time-Domain Waveform) ---
+                if (timeDomainData && timeDomainData.length > 0) {
+                    ctx.save();
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    const sliceWidth = W / timeDomainData.length;
+                    let wx = 0;
+                    for (let i = 0; i < timeDomainData.length; i++) {
+                        const v = timeDomainData[i] / 128.0;
+                        const wy = (v * H) / 2;
+                        if (i === 0) ctx.moveTo(wx, wy);
+                        else ctx.lineTo(wx, wy);
+                        wx += sliceWidth;
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // --- D. 绘制底部镜像对称音频频谱柱 (Frequency Bars) ---
+                if (frequencyData && frequencyData.length > 0) {
+                    const barCount = 64;
+                    const barWidth = (W / barCount);
+                    const step = Math.floor(frequencyData.length / barCount);
+
+                    for (let i = 0; i < barCount; i++) {
+                        const val = frequencyData[i * step] / 255.0;
+                        const barHeight = val * (H * 0.35);
+
+                        const grad = ctx.createLinearGradient(0, H - barHeight, 0, H);
+                        grad.addColorStop(0, secondaryColor);
+                        grad.addColorStop(1, currentThemeColor);
+
+                        ctx.fillStyle = grad;
+                        ctx.fillRect(i * barWidth + 2, H - barHeight, barWidth - 4, barHeight);
+                    }
                 }
             });
 
-            // 示例：如果你希望这个模版完全接管全屏 UI，可调用接管接口（默认全显）：
-            // window.$musicDance.ui.setNativeUI({ controls: true, lyrics: true, progressBar: true });
+            // ==========================================
+            // 5. 反向控制事件绑定 (sdk.controls)
+            // ==========================================
+            btnToggle.addEventListener('click', () => sdk.controls.togglePlay());
+            btnPrev.addEventListener('click', () => sdk.controls.prev());
+            btnNext.addEventListener('click', () => sdk.controls.next());
+            btnVolDown.addEventListener('click', () => sdk.controls.setVolume(Math.max(0, currentVolume - 0.1)));
+            btnVolUp.addEventListener('click', () => sdk.controls.setVolume(Math.min(1, currentVolume + 0.1)));
+
+            // 画布交互与快捷键支持
+            canvas.addEventListener('click', () => sdk.controls.togglePlay());
+            window.addEventListener('keydown', (e) => {
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    sdk.controls.togglePlay();
+                }
+            });
+
+            // ==========================================
+            // 6. 原生 UI 控制 (可选沉浸式接管)
+            // ==========================================
+            // 若需要隐藏播放器宿主原生自带的控制条或歌词面板，可取消以下注释：
+            // sdk.ui.setNativeUI({
+            //     controls: true,     // 宿主底部控制栏
+            //     lyrics: true,       // 宿主右侧歌词面板
+            //     progressBar: true,  // 宿主底部进度条
+            //     coverArt: true      // 宿主悬浮专辑封面
+            // });
         }
-        if (window.$musicDance) initMusicDance();
-        else window.addEventListener('musicdance-ready', initMusicDance, { once: true });
+
+        if (window.$musicDance) {
+            initVisualizer();
+        } else {
+            window.addEventListener('musicdance-ready', initVisualizer, { once: true });
+        }
     </script>
 </body>
 </html>

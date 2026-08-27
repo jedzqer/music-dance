@@ -4,19 +4,21 @@
 
 ## 本目录职责
 
-`src/presets/` 存放 MusicDance 的全部可视化预设（Preset）：
+`src/presets/` 存放 MusicDance 的全部可视化预设（Preset）与开发指引：
 
+- `README.md` — 预设开发指南与规范说明。
+- `API.md` — 软件暴露的所有接口、事件、每帧细分音频数据与控制方法的逐项全景参考。
 - `radial.js` — 径向频谱的独立参考实现（内置锁定，主程序实际渲染走 `src/renderer.js`，此文件仅作参考）。**不要删除或将其改为外置可删模板。**
 - `wave/` — 波浪线条外置模板（`index.html` + `manifest.json`）。
-- `boilerplate/` — 极简开发示例模板，是新预设的推荐起点。
+- `boilerplate/` — 全功能开发示例模板，是新预设的推荐起点，展示了所有 SDK 接口的综合用法。
 
 ## 核心契约（必须遵守）
 
 1. **预设是独立网页**：每个预设是运行在沙箱 iframe（`sandbox="allow-scripts allow-same-origin"`）中的自包含 HTML 文件。不得 import/引用宿主源码模块（`renderer.js`、`beatdetector.js`、`controls.js` 等），不得访问父页 DOM 或 `window.electronAPI`。
-2. **数据唯一入口是 `window.$musicDance` SDK**，宿主在 iframe 加载后注入。SDK 完整参考见同目录 `README.md`。脚本开头应判断 `if (window.$musicDance)`。
-3. **渲染循环自驱**：使用 `requestAnimationFrame` 驱动，`onFrame` 回调中读取数据。不要在 `onFrame` 之外另起高频定时器重复读取。
+2. **数据唯一入口是 `window.$musicDance` SDK**，宿主在 iframe 加载后注入。SDK 完整参考见同目录 `API.md` 及 `README.md`。脚本开头应判断 `if (window.$musicDance)` 或监听 `musicdance-ready` 事件。
+3. **渲染驱动与数据生命周期**：在 `onFrame` 回调中读取每帧数据；`frequencyData` 与 `frequency.normalized` 为宿主复用的 TypedArray，不可跨帧异步修改。
 4. **原生 UI 默认可见**：如需全屏接管才调用 `ui.setNativeUI({...})`；未列出的项保持可见。预设不应假定 UI 已被隐藏。
-5. **空值兜底**：`frequencyData` 可能为空、`coverPalette`/`coverUrl` 可能为 `null`、歌词可能不存在。预设必须在无音乐时也能优雅显示（如静止的默认画面），不得抛错。
+5. **空值与待机兜底**：`frequencyData` 可能为空/全 0、`coverPalette`/`coverUrl` 可能为 `null`、歌词可能不存在。预设必须在无音乐或静止状态下也能优雅呈现，严禁未作空值判断导致脚本抛错崩溃。
 
 ## 文件规范
 
@@ -27,15 +29,14 @@
 
 ## 性能要求
 
-- `onFrame` 回调内每帧执行；保持 60fps，避免：每帧大对象分配、`JSON.stringify`、DOM 写入、无上限数组增长。
+- `onFrame` 回调内每帧执行；保持 60fps，避免：每帧大对象分配、`JSON.stringify`、频繁 DOM 写入、无上限数组增长。
 - 粒子/元素数量设置合理上限（参考：粒子 ≤ 250，线条 ≤ 128 段）。
-- 优先使用 `ctx` 缓冲绘制（渐变、阴影重绘开销大，注意缓存）。
+- 优先使用 `ctx` 缓冲绘制或 WebGL Shader 进行复杂图形渲染。
 
 ## 修改既有预设
 
-- 修改 `wave/` 或 `boilerplate/` 时保持其"教学/参考"性质：示例代码应注释清晰、按步骤组织。
-- 修改 SDK 或宿主侧行为（`src/visualizerManager.js`、`src/app.js` 的帧数据结构）时，必须同步更新 `README.md` 中的 SDK 参考，保证文档与实现一致。
-- 若新增内置预设目录，需同步在仓库根 `AGENTS.md`（如涉及）及本目录 README 的目录树中登记。
+- 修改 `wave/` 或 `boilerplate/` 时保持其“教学/参考/示例”性质：示例代码应注释清晰、结构分明、涵盖全面功能。
+- 修改 SDK 或宿主侧行为（`src/visualizerManager.js`、`src/app.js` 的帧数据结构）时，必须同步更新 `API.md` 和 `README.md` 中的 SDK 参考，保证文档与实现一致。
 
 ## 测试方式
 
