@@ -61,13 +61,24 @@ my-visualizer/
 
 ## 运行环境与约束
 
-预设运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 中：
+预设运行在 `<iframe sandbox="allow-scripts allow-same-origin">` 中。SDK 版本为 `1.0.0`，帧数据版本为 `schemaVersion: 1`。
 
 - ✅ 可以使用任意前端技术：Canvas 2D、WebGL、SVG、DOM/CSS 动画。
 - ✅ 可以加载相对路径资源（图片、字体、着色器文件）。
 - ❌ **不能**访问父页面 DOM、`electronAPI` 或宿主内部模块（如 `renderer.js`）。
 - ❌ 不要依赖 `localStorage` 跨会话共享数据（沙箱中不可靠）。
-- ⚠️ 渲染循环由你自行驱动：推荐使用 `requestAnimationFrame`，并在 `onFrame` 回调中读取数据绘制。
+- ⚠️ 页面应在 `musicdance-ready` 事件后注册 SDK：
+
+```js
+function init() {
+  if (!window.$musicDance || window.__presetStarted) return;
+  window.__presetStarted = true;
+  window.$musicDance.onFrame(frame => { /* 绘制 */ });
+}
+if (window.$musicDance) init();
+else window.addEventListener('musicdance-ready', init, { once: true });
+```
+- 渲染循环由宿主驱动，`onFrame` 每帧调用一次；不要创建独立的高频动画循环。
 
 ---
 
@@ -89,14 +100,22 @@ if (window.$musicDance) {
 ```js
 window.$musicDance.onFrame((frame) => {
   const {
-    frequencyData,   // Uint8Array (0-255) 频域数据，长度 = fftSize/2（256/512/1024）
-    timeDomainData,  // Uint8Array (0-255) 时域波形
+    schemaVersion,   // 当前为 1
+    frequencyData,   // 兼容字段：Uint8Array (0-255)
+    timeDomainData,  // 兼容字段：Uint8Array (0-255)
+    frequency,       // { values, normalized, fftSize, binCount, binHz, sampleRate }
+    timeDomain,      // { values, rms, peak }
+    bands,            // { bass, lowMid, mid, highMid, treble, energy }
+    beat,             // { hit, energy, pulse, lastBeatTime }
+    audioTime,        // 当前音频播放时间（秒）
     timestamp,       // number，秒
     playback,        // { currentTime, duration, isPlaying, volume(0-1) }
     dimensions       // { width, height, cx, cy, dpr }
   } = frame;
 });
 ```
+
+TypedArray 只应在当前回调内读取，宿主会复用并在下一帧原地更新。未播放时数组可能为空；预设必须支持空数组和暂停状态。订阅函数返回取消订阅函数；SDK 还提供 `version`、`apiVersion` 和 `capabilities`，新增字段只追加不改名。
 
 #### `onTrackChange(callback)` —— 曲目切换
 ```js
@@ -125,6 +144,8 @@ window.$musicDance.onStateChange((state) => {
   state.volume;      // 0-1
 });
 ```
+
+新订阅会立即收到最近一次状态（如果存在）。
 
 ### 二、反向控制（制作自定义播放控件）
 

@@ -539,7 +539,7 @@
 
         /* ─── Viz Switcher Button ─── */
         .viz-switcher-btn {
-            position: fixed; top: 40px; right: 16px; z-index: 25;
+            position: fixed; top: 40px; right: 16px; z-index: 45;
             width: 40px; height: 40px; border-radius: 12px;
             border: 1px solid rgba(255,255,255,0.08);
             background: rgba(10, 10, 25, 0.62);

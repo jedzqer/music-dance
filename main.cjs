@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog, desktopCapturer, shell } = require(
 const path = require('path');
 const fs = require('fs');
 const extractZip = require('extract-zip');
+const { pathToFileURL } = require('url');
+const os = require('os');
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -410,7 +412,7 @@ ipcMain.handle('list-visualizers', async () => {
           list.push({
             ...manifest,
             path: dirPath,
-            entryUrl: `file://${indexPath.replace(/\\/g, '/')}`,
+            entryUrl: pathToFileURL(indexPath).href,
             isBuiltIn: false
           });
         }
@@ -424,7 +426,7 @@ ipcMain.handle('list-visualizers', async () => {
           description: '单 HTML 可视化模板',
           icon: '📄',
           path: filePath,
-          entryUrl: `file://${filePath.replace(/\\/g, '/')}`,
+          entryUrl: pathToFileURL(filePath).href,
           isBuiltIn: false
         });
       }
@@ -458,13 +460,32 @@ ipcMain.handle('import-visualizer-dialog', async () => {
 
   if (ext === '.zip') {
     const targetDir = path.join(visualizersDir, baseName);
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    if (fs.existsSync(targetDir)) {
+      throw new Error('同名可视化已存在，请先删除旧版本或更换文件名');
     }
-    await extractZip(filePath, { dir: targetDir });
+    const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'musicdance-viz-'));
+    try {
+      await extractZip(filePath, { dir: tempDir });
+      const topEntries = await fs.promises.readdir(tempDir, { withFileTypes: true });
+      const packageRoot = topEntries.length === 1 && topEntries[0].isDirectory()
+        ? path.join(tempDir, topEntries[0].name)
+        : tempDir;
+      const indexPath = path.join(packageRoot, 'index.html');
+      if (!fs.existsSync(indexPath)) {
+        throw new Error('可视化包缺少根目录 index.html');
+      }
+      await fs.promises.rename(packageRoot, targetDir);
+    } finally {
+      if (fs.existsSync(tempDir)) {
+        await fs.promises.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      }
+    }
     return { success: true, id: baseName };
   } else if (ext === '.html' || ext === '.htm') {
     const targetFile = path.join(visualizersDir, path.basename(filePath));
+    if (fs.existsSync(targetFile)) {
+      throw new Error('同名可视化已存在，请先删除旧版本或更换文件名');
+    }
     await fs.promises.copyFile(filePath, targetFile);
     return { success: true, id: baseName };
   }
@@ -490,4 +511,3 @@ ipcMain.handle('delete-visualizer', async (event, vizId) => {
   }
   return false;
 });
-

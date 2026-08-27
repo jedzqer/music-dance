@@ -30,6 +30,7 @@
     },
     "files": [
       "dist/**/*",
+      "src/presets/**/*",
       "main.cjs",
       "preload.cjs",
       "package.json"

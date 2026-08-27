@@ -117,7 +117,9 @@
             }
         }
 
-        if (window.$musicDance) {
+        function initMusicDance() {
+            if (window.__musicDancePresetInitialized || !window.$musicDance) return;
+            window.__musicDancePresetInitialized = true;
             window.$musicDance.onTrackChange((track) => {
                 currentPalette = track.coverPalette;
             });
@@ -240,6 +242,8 @@
                 }
             });
         }
+        if (window.$musicDance) initMusicDance();
+        else window.addEventListener('musicdance-ready', initMusicDance, { once: true });
     </script>
 </body>
 </html>

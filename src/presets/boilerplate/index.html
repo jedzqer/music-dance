@@ -86,8 +86,9 @@
         window.addEventListener('resize', resize);
         resize();
 
-        // 检查 $musicDance SDK 是否注入成功
-        if (window.$musicDance) {
+        function initMusicDance() {
+            if (window.__musicDancePresetInitialized || !window.$musicDance) return;
+            window.__musicDancePresetInitialized = true;
             // 1. 监听歌曲切换事件
             window.$musicDance.onTrackChange((track) => {
                 titleEl.textContent = `${track.title || '未知曲目'} - ${track.artist || '未知艺术家'}`;
@@ -130,6 +131,8 @@
             // 示例：如果你希望这个模版完全接管全屏 UI，可调用接管接口（默认全显）：
             // window.$musicDance.ui.setNativeUI({ controls: true, lyrics: true, progressBar: true });
         }
+        if (window.$musicDance) initMusicDance();
+        else window.addEventListener('musicdance-ready', initMusicDance, { once: true });
     </script>
 </body>
 </html>

@@ -6,6 +6,8 @@ import { resetBeatDetector } from './beatdetector.js';
 import { resetRenderer } from './renderer.js';
 import { Playlist } from './playlist.js';
 import { VisualizerManager } from './visualizerManager.js';
+import { readJsmediatags } from './binary-utils.js';
+import wavePresetHtml from './presets/wave/index.html?raw';
 
 const state = {
     audioContext: null,
@@ -45,7 +47,8 @@ const state = {
     _nextTrackPending: false,
     monitorMode: false,
     _monitorStream: null,
-    _monitorSource: null
+    _monitorSource: null,
+    _trackToken: 0
 };
 
 export let vizManager = null;
@@ -204,8 +207,8 @@ export function init() {
             }
         },
         onControlsAction: (method, args) => {
-            if (method === 'play') handlePlayPause();
-            else if (method === 'pause') handlePlayPause();
+            if (method === 'play') handlePlay();
+            else if (method === 'pause') handlePause();
             else if (method === 'togglePlay') handlePlayPause();
             else if (method === 'next') handleNext();
             else if (method === 'prev') handlePrevious();
@@ -255,8 +258,7 @@ export function init() {
 
     restoreVolume();
     restoreLastFolder();
-    restoreSettings();
-    loadVisualizersList();
+    restoreSettings().finally(() => loadVisualizersList());
 }
 
 function setPlayIcon(playing) {
@@ -406,13 +408,13 @@ function updateLyricsHighlight(currentTime) {
     if (idx >= 0 && idx < lyricsLineElements.length) {
         currentActiveLyricsEl = lyricsLineElements[idx];
         currentActiveLyricsEl.classList.add('active');
-        if (vizManager && lines[idx]) {
-            vizManager.notifyLyricsUpdate({
-                currentLine: lines[idx].text,
-                currentIndex: idx,
-                lines: lines
-            });
-        }
+    }
+    if (vizManager) {
+        vizManager.notifyLyricsUpdate({
+            currentLine: idx >= 0 && lines[idx] ? lines[idx].text : '',
+            currentIndex: idx,
+            lines
+        });
     }
 }
 
@@ -421,7 +423,15 @@ function applyLyrics(raw) {
     if (typeof raw !== 'string') return false;
     state.parsedLyrics = parseLyrics(raw);
     if (!state.parsedLyrics) return false;
+    state.currentLyricsIndex = -1;
     renderLyrics();
+    if (vizManager) {
+        vizManager.notifyLyricsUpdate({
+            currentLine: '',
+            currentIndex: -1,
+            lines: state.parsedLyrics.lines || []
+        });
+    }
     return true;
 }
 
@@ -436,8 +446,14 @@ export async function cleanupAudio() {
         return;
     }
     cancelCrossfade();
+    state._trackToken++;
     cancelAutoPause();
     cleanupSecondaryElement();
+    if (vizManager) {
+        vizManager.notifyTrackChange({ title: '', artist: '', album: '', duration: 0, coverUrl: null, coverPalette: null });
+        vizManager.notifyLyricsUpdate({ currentLine: '', currentIndex: -1, lines: [] });
+        vizManager.notifyStateChange({ isPlaying: false, volume: els.volumeSlider ? els.volumeSlider.value / 100 : 0.8 });
+    }
     if (state.audioElement) {
         state.audioElement.removeEventListener('ended', handleTrackEnded);
         state.audioElement.removeEventListener('timeupdate', handleTimeUpdate);
@@ -545,6 +561,26 @@ async function loadFile(file, filePath) {
             coverUrl: null,
             coverPalette: null
         };
+        const trackToken = state._trackToken;
+
+        const notifyTrack = () => {
+            if (trackToken === state._trackToken) vizManager?.notifyTrackChange({ ...trackMeta });
+        };
+        notifyTrack();
+
+        readJsmediatags(file, tag => {
+            const tags = tag?.tags || {};
+            return {
+                title: tags.title || trackMeta.title,
+                artist: tags.artist || '',
+                album: tags.album || ''
+            };
+        }).then(meta => {
+            if (meta) {
+                Object.assign(trackMeta, meta);
+                notifyTrack();
+            }
+        });
 
         loadEmbeddedLyrics(file).then(embeddedLoaded => {
             if (!embeddedLoaded && state.autoLoadLrc && filePath) {
@@ -563,18 +599,20 @@ async function loadFile(file, filePath) {
                 state.coverPalette = palette;
                 trackMeta.coverPalette = palette;
             }
-            if (vizManager) vizManager.notifyTrackChange(trackMeta);
+            notifyTrack();
         }).catch(() => {
-            if (vizManager) vizManager.notifyTrackChange(trackMeta);
+            notifyTrack();
         });
 
         if (state.audioContext.state === 'suspended') await state.audioContext.resume();
         await state.audioElement.play();
+        if (Number.isFinite(state.audioElement.duration)) {
+            trackMeta.duration = state.audioElement.duration;
+            notifyTrack();
+        }
         state.isPlaying = true;
         setPlayIcon(true);
-        if (vizManager) {
-            vizManager.notifyStateChange({ isPlaying: true, volume: els.volumeSlider.value / 100 });
-        }
+        notifyPlaybackState();
 
         els.homePage.classList.add('hidden');
         els.controls.classList.add('visible');
@@ -597,18 +635,37 @@ function handleFileInput() {
     loadFile(file);
 }
 
-function handlePlayPause() {
-    if (!state.audioElement) return;
-    if (state.isPlaying) {
-        state.audioElement.pause();
-        setPlayIcon(false);
-        state.isPlaying = false;
-    } else {
-        if (state.audioContext.state === 'suspended') state.audioContext.resume();
-        state.audioElement.play().catch(() => {});
-        setPlayIcon(true);
-        state.isPlaying = true;
+function notifyPlaybackState() {
+    if (vizManager) {
+        vizManager.notifyStateChange({
+            isPlaying: state.isPlaying,
+            volume: els.volumeSlider ? els.volumeSlider.value / 100 : 0.8
+        });
     }
+}
+
+function handlePlay() {
+    if (!state.audioElement) return;
+    if (state.isPlaying) return;
+    if (state.audioContext.state === 'suspended') state.audioContext.resume();
+    state.audioElement.play().then(() => {
+        state.isPlaying = true;
+        setPlayIcon(true);
+        notifyPlaybackState();
+    }).catch(() => {});
+}
+
+function handlePause() {
+    if (!state.audioElement || !state.isPlaying) return;
+    state.audioElement.pause();
+    setPlayIcon(false);
+    state.isPlaying = false;
+    notifyPlaybackState();
+}
+
+function handlePlayPause() {
+    if (state.isPlaying) handlePause();
+    else handlePlay();
 }
 
 function handleVolume() {
@@ -623,6 +680,7 @@ function handleVolume() {
     if (window.electronAPI) {
         window.electronAPI.saveVolume(parseInt(els.volumeSlider.value)).catch(() => {});
     }
+    notifyPlaybackState();
 }
 
 function handleKeyDown(e) {
@@ -958,6 +1016,7 @@ function handleTrackEnded() {
     if (idx < 0) {
         state.isPlaying = false;
         setPlayIcon(false);
+        notifyPlaybackState();
         renderHomeList();
         return;
     }
@@ -965,6 +1024,7 @@ function handleTrackEnded() {
     if (state.autoPauseDuration > 0 && state.crossfadeDuration <= 0) {
         state.isPlaying = false;
         setPlayIcon(false);
+        notifyPlaybackState();
         state._autoPauseTimeout = setTimeout(() => {
             state._autoPauseTimeout = null;
             state.playlist.setCurrentIndex(idx);
@@ -1070,6 +1130,7 @@ async function startCrossfade() {
 
 function completeCrossfade(nextIdx, file, item) {
     state._crossfadeActive = false;
+    state._trackToken++;
     if (state._crossfadeTimeout) {
         clearTimeout(state._crossfadeTimeout);
         state._crossfadeTimeout = null;
@@ -1103,6 +1164,32 @@ function completeCrossfade(nextIdx, file, item) {
 
     state.playlist.setCurrentIndex(nextIdx);
     els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
+    state.parsedLyrics = null;
+    state.currentLyricsIndex = -1;
+    if (vizManager) vizManager.notifyLyricsUpdate({ currentLine: '', currentIndex: -1, lines: [] });
+
+    const trackMeta = {
+        title: file.name.replace(/\.[^.]+$/, ''),
+        artist: '',
+        album: '',
+        duration: state.audioElement.duration || 0,
+        coverUrl: null,
+        coverPalette: null
+    };
+    const trackToken = state._trackToken;
+    const notifyTrack = () => {
+        if (trackToken === state._trackToken) vizManager?.notifyTrackChange({ ...trackMeta });
+    };
+    notifyTrack();
+    readJsmediatags(file, tag => {
+        const tags = tag?.tags || {};
+        return { title: tags.title || trackMeta.title, artist: tags.artist || '', album: tags.album || '' };
+    }).then(meta => {
+        if (meta) {
+            Object.assign(trackMeta, meta);
+            notifyTrack();
+        }
+    });
 
     // 更新歌词和封面
     loadEmbeddedLyrics(file).then(embeddedLoaded => {
@@ -1114,9 +1201,14 @@ function completeCrossfade(nextIdx, file, item) {
         if (!anyLoaded) renderLyrics();
     }).catch(() => renderLyrics());
     loadCoverArt(file, item.path).then((picture) => {
+        trackMeta.coverUrl = state.coverUrl;
         return loadCoverPalette(file, picture);
     }).then((palette) => {
-        if (palette) state.coverPalette = palette;
+        if (palette) {
+            state.coverPalette = palette;
+            trackMeta.coverPalette = palette;
+        }
+        notifyTrack();
     }).catch(() => {});
 
     renderPlaylist();
@@ -1252,7 +1344,7 @@ function toggleVizSwitcherPanel(show) {
         toggleSettingsPanel(false);
         togglePlaylistPanel(false);
         positionVizSwitcherPanel();
-        syncVizSwitcherUI();
+        renderVizSwitcherList();
         panel.classList.add('visible');
     } else {
         panel.classList.remove('visible');
@@ -1292,21 +1384,30 @@ export async function loadVisualizersList() {
             state.visualizersList = defaultList;
         }
     } else {
-        state.visualizersList = [
-            ...defaultList,
-            {
-                id: 'wave',
+            state.visualizersList = [
+                ...defaultList,
+                {
+                    id: 'wave',
                 name: '波浪线条',
                 author: 'MusicDance',
                 description: '优雅的多层动态波浪音频可视化效果',
-                icon: '〜',
-                isBuiltIn: true,
-                isLocked: false
-            }
+                    icon: '〜',
+                    isBuiltIn: true,
+                    htmlContent: wavePresetHtml,
+                    isLocked: false
+                }
         ];
     }
 
     renderVizSwitcherList();
+    const selected = state.visualizersList.find(v => v.id === state.vizStyle);
+    if (!selected) {
+        state.vizStyle = 'radial';
+        persistSettings();
+    }
+    if (vizManager) {
+        await vizManager.loadVisualizer(selected || defaultList[0]);
+    }
 }
 
 function renderVizSwitcherList() {
@@ -1560,6 +1661,7 @@ export async function showHomePage() {
         return;
     }
     state.onHomePage = true;
+    vizManager?.resetNativeUI();
     await cleanupAudio();
     els.homePage.classList.remove('hidden');
     els.controls.classList.remove('visible');
