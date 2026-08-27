@@ -8,6 +8,30 @@ import { Playlist } from './playlist.js';
 import { VisualizerManager } from './visualizerManager.js';
 import { readJsmediatags } from './binary-utils.js';
 import wavePresetHtml from './presets/wave/index.html?raw';
+import boilerplatePresetHtml from './presets/boilerplate/index.html?raw';
+
+const bundledPresetList = [
+    {
+        id: 'wave',
+        name: '波浪线条',
+        author: 'MusicDance',
+        description: '优雅的多层动态波浪音频可视化效果',
+        icon: '〜',
+        isBuiltIn: true,
+        htmlContent: wavePresetHtml,
+        isLocked: false
+    },
+    {
+        id: 'boilerplate',
+        name: '全功能开发示例模板',
+        author: 'MusicDance',
+        description: '展示 SDK 全量接口（多频段分析、节拍粒子、波形、歌词、封面色彩联动与反向控制）的全面开发示例',
+        icon: '🚀',
+        isBuiltIn: true,
+        htmlContent: boilerplatePresetHtml,
+        isLocked: false
+    }
+];
 
 const state = {
     audioContext: null,
@@ -1378,25 +1402,25 @@ export async function loadVisualizersList() {
     if (window.electronAPI?.listVisualizers) {
         try {
             const externalList = await window.electronAPI.listVisualizers();
-            state.visualizersList = [...defaultList, ...externalList];
+            // Electron reports templates from the user data directory as file:// URLs.
+            // Prefer the bundled HTML for shipped examples so the SDK can be injected
+            // into the sandbox even when the host page is served by Vite over http://.
+            const bundledById = new Map(bundledPresetList.map(item => [item.id, item]));
+            const externalIds = new Set(externalList.map(item => item.id));
+            const mergedExternal = externalList.map(item => {
+                const bundled = bundledById.get(item.id);
+                return bundled
+                    ? { ...item, ...bundled, entryUrl: undefined, isBuiltIn: true }
+                    : item;
+            });
+            const missingBundled = bundledPresetList.filter(item => !externalIds.has(item.id));
+            state.visualizersList = [...defaultList, ...mergedExternal, ...missingBundled];
         } catch (e) {
             console.error('加载外置可视化列表失败:', e);
-            state.visualizersList = defaultList;
+            state.visualizersList = [...defaultList, ...bundledPresetList];
         }
     } else {
-            state.visualizersList = [
-                ...defaultList,
-                {
-                    id: 'wave',
-                name: '波浪线条',
-                author: 'MusicDance',
-                description: '优雅的多层动态波浪音频可视化效果',
-                    icon: '〜',
-                    isBuiltIn: true,
-                    htmlContent: wavePresetHtml,
-                    isLocked: false
-                }
-        ];
+        state.visualizersList = [...defaultList, ...bundledPresetList];
     }
 
     renderVizSwitcherList();

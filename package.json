@@ -47,5 +47,8 @@
       "target": "AppImage",
       "icon": "icon.png"
     }
+  },
+  "dependencies": {
+    "extract-zip": "^2.0.1"
   }
 }
