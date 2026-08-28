@@ -116,26 +116,14 @@
         <div class="playlist-content" id="playlist-content"></div>
     </div>
 
+    <div class="modal-overlay" id="modal-overlay"></div>
+
     <div class="settings-panel" id="settings-panel">
         <div class="settings-header">
-            <h3>设置</h3>
+            <h3>播放设置</h3>
             <button class="settings-close" id="settings-close">&times;</button>
         </div>
         <div class="settings-content" id="settings-content">
-            <div class="settings-group">
-                <div class="settings-label">循环模式</div>
-                <div class="settings-row">
-                    <button class="settings-option" data-loop="none">不循环</button>
-                    <button class="settings-option" data-loop="all">列表循环</button>
-                    <button class="settings-option" data-loop="one">单曲循环</button>
-                </div>
-            </div>
-            <div class="settings-group">
-                <div class="settings-label">随机播放</div>
-                <div class="settings-row">
-                    <button class="settings-option" id="settings-shuffle-toggle">关闭</button>
-                </div>
-            </div>
             <div class="settings-group">
                 <div class="settings-label">可视化质量</div>
                 <div class="settings-row">
@@ -188,6 +176,15 @@
                     <button class="settings-option" data-pause="10">10秒</button>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="settings-panel" id="app-settings-panel">
+        <div class="settings-header">
+            <h3>软件设置</h3>
+            <button class="settings-close" id="app-settings-close">&times;</button>
+        </div>
+        <div class="settings-content" id="app-settings-content">
             <div class="settings-group">
                 <div class="settings-label">关于</div>
                 <div class="settings-about">

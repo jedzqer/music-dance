@@ -223,6 +223,7 @@ export function init() {
     els.settingsPanel = document.getElementById('settings-panel');
     els.settingsClose = document.getElementById('settings-close');
     els.settingsContent = document.getElementById('settings-content');
+    els.modalOverlay = document.getElementById('modal-overlay');
     els.homeSearch = document.getElementById('home-search');
     els.vizSwitcherBtn = document.getElementById('viz-switcher-btn');
     els.vizSwitcherPanel = document.getElementById('viz-switcher-panel');
@@ -233,6 +234,9 @@ export function init() {
     els.monitorBtn = document.getElementById('monitor-btn');
     els.titleBar = document.getElementById('title-bar');
     els.homeSettingsBtn = document.getElementById('home-settings-btn');
+    els.homeSidebar = document.querySelector('.home-sidebar');
+    els.appSettingsPanel = document.getElementById('app-settings-panel');
+    els.appSettingsClose = document.getElementById('app-settings-close');
     els.settingsCurrentVersion = document.getElementById('settings-current-version');
     els.settingsCheckUpdateBtn = document.getElementById('settings-check-update-btn');
     els.settingsUpdateStatus = document.getElementById('settings-update-status');
@@ -300,7 +304,8 @@ export function init() {
     els.settingsBtn.addEventListener('click', () => toggleSettingsPanel());
     els.settingsClose.addEventListener('click', () => toggleSettingsPanel(false));
     els.settingsContent.addEventListener('click', handleSettingsClick);
-    els.homeSettingsBtn?.addEventListener('click', () => toggleSettingsPanel(undefined, els.homeSettingsBtn));
+    els.homeSettingsBtn?.addEventListener('click', () => toggleAppSettingsPanel());
+    els.appSettingsClose?.addEventListener('click', () => toggleAppSettingsPanel(false));
     els.settingsCheckUpdateBtn?.addEventListener('click', handleCheckUpdate);
     if (els.settingsCurrentVersion) els.settingsCurrentVersion.textContent = `v${CURRENT_VERSION}`;
     els.homeSearch.addEventListener('input', handleHomeSearch);
@@ -311,6 +316,7 @@ export function init() {
     els.vizReloadBtn?.addEventListener('click', loadVisualizersList);
     els.monitorBtn?.addEventListener('click', handleMonitorMode);
     document.addEventListener('click', handleOutsideClick);
+    window.addEventListener('resize', updateMiniPlayerClearance);
 
     restoreVolume();
     restoreLastFolder();
@@ -355,11 +361,21 @@ export function updateProgressBar() {
     }
 }
 
+function updateMiniPlayerClearance() {
+    if (!els.homeSidebar || !els.miniPlayer) return;
+    if (!els.miniPlayer.classList.contains('has-track')) return;
+    const height = els.miniPlayer.getBoundingClientRect().height;
+    if (height > 0) {
+        els.homeSidebar.style.setProperty('--mini-player-clearance', `${height + 24}px`);
+    }
+}
+
 function updateMiniPlayer() {
     if (!els.miniPlayer) return;
     const hasTrack = !!state.audioElement && !state.monitorMode;
     els.miniPlayer.classList.toggle('has-track', hasTrack);
     if (!hasTrack) return;
+    requestAnimationFrame(updateMiniPlayerClearance);
     if (els.miniTrackName) {
         els.miniTrackName.textContent = els.trackName?.textContent && els.trackName.textContent !== '\u2014'
             ? els.trackName.textContent : '未选择音乐';
@@ -952,6 +968,7 @@ function togglePlaylistPanel(show) {
     const shouldShow = show === undefined ? !els.playlistPanel.classList.contains('visible') : show;
     if (shouldShow) {
         toggleSettingsPanel(false);
+        toggleAppSettingsPanel(false);
         positionPlaylistAboveButton();
         els.playlistPanel.classList.add('visible');
     } else {
@@ -1421,35 +1438,38 @@ async function restoreSettings() {
     } catch (_) {}
 }
 
-function toggleSettingsPanel(show, anchorBtn) {
+function toggleSettingsPanel(show) {
     const shouldShow = show === undefined ? !els.settingsPanel.classList.contains('visible') : show;
     if (shouldShow) {
         togglePlaylistPanel(false);
-        positionSettingsAboveButton(anchorBtn || els.settingsBtn);
+        toggleVizSwitcherPanel(false);
+        toggleAppSettingsPanel(false);
         syncSettingsUI();
         els.settingsPanel.classList.add('visible');
+        els.modalOverlay?.classList.add('visible');
     } else {
         els.settingsPanel.classList.remove('visible');
+        if (!els.appSettingsPanel?.classList.contains('visible')) {
+            els.modalOverlay?.classList.remove('visible');
+        }
     }
 }
 
-function positionSettingsAboveButton(anchorBtn) {
-    const btnRect = (anchorBtn || els.settingsBtn).getBoundingClientRect();
-    const panelWidth = Math.min(400, window.innerWidth * 0.8);
-    const gap = 12;
-    let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
-    left = Math.max(16, Math.min(left, window.innerWidth - panelWidth - 16));
-    let bottom = window.innerHeight - btnRect.top + gap;
-    const panelMaxHeight = window.innerHeight * 0.6;
-    if (window.innerHeight - bottom - panelMaxHeight < 16) {
-        els.settingsPanel.style.top = (btnRect.bottom + gap) + 'px';
-        els.settingsPanel.style.bottom = 'auto';
+function toggleAppSettingsPanel(show) {
+    if (!els.appSettingsPanel) return;
+    const shouldShow = show === undefined ? !els.appSettingsPanel.classList.contains('visible') : show;
+    if (shouldShow) {
+        togglePlaylistPanel(false);
+        toggleVizSwitcherPanel(false);
+        toggleSettingsPanel(false);
+        els.appSettingsPanel.classList.add('visible');
+        els.modalOverlay?.classList.add('visible');
     } else {
-        els.settingsPanel.style.bottom = bottom + 'px';
-        els.settingsPanel.style.top = 'auto';
+        els.appSettingsPanel.classList.remove('visible');
+        if (!els.settingsPanel.classList.contains('visible')) {
+            els.modalOverlay?.classList.remove('visible');
+        }
     }
-    els.settingsPanel.style.left = left + 'px';
-    els.settingsPanel.style.width = panelWidth + 'px';
 }
 
 function toggleVizSwitcherPanel(show) {
@@ -1458,6 +1478,7 @@ function toggleVizSwitcherPanel(show) {
     const shouldShow = show === undefined ? !panel.classList.contains('visible') : show;
     if (shouldShow) {
         toggleSettingsPanel(false);
+        toggleAppSettingsPanel(false);
         togglePlaylistPanel(false);
         positionVizSwitcherPanel();
         renderVizSwitcherList();
@@ -1794,9 +1815,12 @@ function handleHomeSearch() {
 
 function handleOutsideClick(e) {
     if (els.settingsPanel.classList.contains('visible') &&
-        !els.settingsPanel.contains(e.target) && !els.settingsBtn.contains(e.target) &&
-        !els.homeSettingsBtn?.contains(e.target)) {
+        !els.settingsPanel.contains(e.target) && !els.settingsBtn.contains(e.target)) {
         toggleSettingsPanel(false);
+    }
+    if (els.appSettingsPanel?.classList.contains('visible') &&
+        !els.appSettingsPanel.contains(e.target) && !els.homeSettingsBtn?.contains(e.target)) {
+        toggleAppSettingsPanel(false);
     }
     if (els.playlistPanel.classList.contains('visible') &&
         !els.playlistPanel.contains(e.target) && !els.playlistBtn.contains(e.target)) {
@@ -1819,6 +1843,8 @@ export async function showHomePage() {
     els.controls.classList.remove('visible');
     els.playlistPanel?.classList.remove('visible');
     els.settingsPanel?.classList.remove('visible');
+    els.appSettingsPanel?.classList.remove('visible');
+    els.modalOverlay?.classList.remove('visible');
     homeSearchQuery = '';
     if (els.homeSearch) els.homeSearch.value = '';
     renderHomeList();
