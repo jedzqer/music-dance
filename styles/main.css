@@ -89,6 +89,20 @@
             margin-top: 20px; font-size: 0.75rem;
             color: rgba(255,255,255,0.25); text-align: center;
         }
+        .home-sidebar-footer {
+            margin-top: auto; padding-top: 20px;
+        }
+        .home-settings-btn {
+            display: flex; align-items: center; gap: 10px;
+            width: 100%; padding: 10px 14px; border: none;
+            border-radius: 10px; background: transparent;
+            color: rgba(255,255,255,0.45); font-size: 0.85rem;
+            font-family: var(--font-main); cursor: pointer; transition: all 0.2s;
+        }
+        .home-settings-btn:hover {
+            background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.8);
+        }
+        .home-settings-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
         .home-content {
             flex: 1; display: flex; flex-direction: column;
             padding: 60px 32px 24px; overflow: hidden;
@@ -541,6 +555,23 @@
             background: rgba(79, 172, 254, 0.15); border-color: rgba(79, 172, 254, 0.5);
             color: #4facfe;
         }
+        .settings-about {
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .settings-about-row {
+            display: flex; align-items: center; justify-content: space-between;
+            font-size: 0.85rem; color: rgba(255,255,255,0.6);
+        }
+        .settings-about-row a {
+            color: #4facfe; text-decoration: none;
+        }
+        .settings-about-row a:hover { text-decoration: underline; }
+        .settings-update-status {
+            font-size: 0.8rem; color: rgba(255,255,255,0.45); min-height: 1.2em;
+        }
+        .settings-update-status.has-update { color: #fa709a; }
+        .settings-update-status a { color: #4facfe; text-decoration: none; }
+        .settings-update-status a:hover { text-decoration: underline; }
 
         /* ─── Home Search ─── */
         .home-search-wrap {

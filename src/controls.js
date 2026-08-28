@@ -9,6 +9,11 @@ import { VisualizerManager } from './visualizerManager.js';
 import { readJsmediatags } from './binary-utils.js';
 import wavePresetHtml from './presets/wave/index.html?raw';
 import boilerplatePresetHtml from './presets/boilerplate/index.html?raw';
+import pkg from '../package.json';
+
+const CURRENT_VERSION = pkg.version;
+const UPDATE_MANIFEST_URL = 'https://raw.githubusercontent.com/jedzqer/music-dance/main/update.json';
+const REPO_URL = 'https://github.com/jedzqer/music-dance';
 
 const bundledPresetList = [
     {
@@ -227,6 +232,10 @@ export function init() {
     els.vizReloadBtn = document.getElementById('viz-reload-btn');
     els.monitorBtn = document.getElementById('monitor-btn');
     els.titleBar = document.getElementById('title-bar');
+    els.homeSettingsBtn = document.getElementById('home-settings-btn');
+    els.settingsCurrentVersion = document.getElementById('settings-current-version');
+    els.settingsCheckUpdateBtn = document.getElementById('settings-check-update-btn');
+    els.settingsUpdateStatus = document.getElementById('settings-update-status');
 
     // Init Visualizer Manager
     vizManager = new VisualizerManager({
@@ -291,6 +300,9 @@ export function init() {
     els.settingsBtn.addEventListener('click', () => toggleSettingsPanel());
     els.settingsClose.addEventListener('click', () => toggleSettingsPanel(false));
     els.settingsContent.addEventListener('click', handleSettingsClick);
+    els.homeSettingsBtn?.addEventListener('click', () => toggleSettingsPanel(undefined, els.homeSettingsBtn));
+    els.settingsCheckUpdateBtn?.addEventListener('click', handleCheckUpdate);
+    if (els.settingsCurrentVersion) els.settingsCurrentVersion.textContent = `v${CURRENT_VERSION}`;
     els.homeSearch.addEventListener('input', handleHomeSearch);
     els.vizSwitcherBtn?.addEventListener('click', () => toggleVizSwitcherPanel());
     els.vizSwitcherPanel?.querySelector('.viz-switcher-close')?.addEventListener('click', () => toggleVizSwitcherPanel(false));
@@ -1409,11 +1421,11 @@ async function restoreSettings() {
     } catch (_) {}
 }
 
-function toggleSettingsPanel(show) {
+function toggleSettingsPanel(show, anchorBtn) {
     const shouldShow = show === undefined ? !els.settingsPanel.classList.contains('visible') : show;
     if (shouldShow) {
         togglePlaylistPanel(false);
-        positionSettingsAboveButton();
+        positionSettingsAboveButton(anchorBtn || els.settingsBtn);
         syncSettingsUI();
         els.settingsPanel.classList.add('visible');
     } else {
@@ -1421,8 +1433,8 @@ function toggleSettingsPanel(show) {
     }
 }
 
-function positionSettingsAboveButton() {
-    const btnRect = els.settingsBtn.getBoundingClientRect();
+function positionSettingsAboveButton(anchorBtn) {
+    const btnRect = (anchorBtn || els.settingsBtn).getBoundingClientRect();
     const panelWidth = Math.min(400, window.innerWidth * 0.8);
     const gap = 12;
     let left = btnRect.left + btnRect.width / 2 - panelWidth / 2;
@@ -1644,6 +1656,42 @@ async function handleOpenVisualizersFolder() {
     await window.electronAPI.openVisualizersFolder();
 }
 
+function compareVersions(a, b) {
+    const pa = a.replace(/^v/i, '').split('.').map(Number);
+    const pb = b.replace(/^v/i, '').split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = pa[i] || 0;
+        const nb = pb[i] || 0;
+        if (na !== nb) return na > nb ? 1 : -1;
+    }
+    return 0;
+}
+
+async function handleCheckUpdate() {
+    if (!els.settingsUpdateStatus) return;
+    els.settingsUpdateStatus.classList.remove('has-update');
+    els.settingsUpdateStatus.textContent = '正在检查更新…';
+    els.settingsCheckUpdateBtn.disabled = true;
+    try {
+        const res = await fetch(UPDATE_MANIFEST_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const manifest = await res.json();
+        const latestVersion = manifest.version;
+        if (latestVersion && compareVersions(latestVersion, CURRENT_VERSION) > 0) {
+            els.settingsUpdateStatus.classList.add('has-update');
+            els.settingsUpdateStatus.innerHTML =
+                `发现新版本 v${latestVersion}，<a href="${manifest.url || REPO_URL}" target="_blank" rel="noopener noreferrer">点击前往下载</a>`;
+        } else {
+            els.settingsUpdateStatus.textContent = '当前已是最新版本';
+        }
+    } catch (err) {
+        console.error('检查更新失败:', err);
+        els.settingsUpdateStatus.textContent = '检查更新失败，请检查网络连接';
+    } finally {
+        els.settingsCheckUpdateBtn.disabled = false;
+    }
+}
+
 function syncSettingsUI() {
     document.querySelectorAll('[data-loop]').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.loop === state.loopMode);
@@ -1746,7 +1794,8 @@ function handleHomeSearch() {
 
 function handleOutsideClick(e) {
     if (els.settingsPanel.classList.contains('visible') &&
-        !els.settingsPanel.contains(e.target) && !els.settingsBtn.contains(e.target)) {
+        !els.settingsPanel.contains(e.target) && !els.settingsBtn.contains(e.target) &&
+        !els.homeSettingsBtn?.contains(e.target)) {
         toggleSettingsPanel(false);
     }
     if (els.playlistPanel.classList.contains('visible') &&

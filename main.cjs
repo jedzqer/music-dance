@@ -115,6 +115,13 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     mainWindow?.webContents.send('fullscreen-changed', false);
   });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https://') || url.startsWith('http://')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
 }
 
 app.whenReady().then(() => {
