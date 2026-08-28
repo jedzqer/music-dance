@@ -30,10 +30,18 @@
     },
     "files": [
       "dist/**/*",
-      "src/presets/**/*",
       "main.cjs",
       "preload.cjs",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/presets",
+        "to": "presets",
+        "filter": [
+          "**/*"
+        ]
+      }
     ],
     "win": {
       "target": "nsis",

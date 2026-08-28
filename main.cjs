@@ -12,25 +12,37 @@ let mainWindow;
 const settingsPath = path.join(app.getPath('userData'), 'settings.json');
 const visualizersDir = path.join(app.getPath('userData'), 'visualizers');
 
+function getBundledPresetsDir() {
+  // Packaged builds keep the editable templates outside app.asar.
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'presets')
+    : path.join(__dirname, 'src', 'presets');
+}
+
 function ensureVisualizersDir() {
   if (!fs.existsSync(visualizersDir)) {
     fs.mkdirSync(visualizersDir, { recursive: true });
   }
 
-  // Release default templates if not present
-  const defaultPresetsDir = path.join(__dirname, 'src/presets');
+  // Release templates and their development documentation without replacing
+  // files the user may have customized in the visualizers folder.
+  const defaultPresetsDir = getBundledPresetsDir();
   if (fs.existsSync(defaultPresetsDir)) {
     try {
-      const presets = ['wave', 'boilerplate'];
-      for (const preset of presets) {
-        const srcPreset = path.join(defaultPresetsDir, preset);
-        const destPreset = path.join(visualizersDir, preset);
-        if (fs.existsSync(srcPreset) && !fs.existsSync(destPreset)) {
-          copyFolderRecursiveSync(srcPreset, destPreset);
+      const entries = fs.readdirSync(defaultPresetsDir, { withFileTypes: true });
+      for (const entry of entries) {
+        const sourcePath = path.join(defaultPresetsDir, entry.name);
+        const targetPath = path.join(visualizersDir, entry.name);
+        if (fs.existsSync(targetPath)) continue;
+
+        if (entry.isDirectory()) {
+          copyFolderRecursiveSync(sourcePath, targetPath);
+        } else if (entry.isFile()) {
+          fs.copyFileSync(sourcePath, targetPath);
         }
       }
     } catch (e) {
-      console.warn('释放预设可视化失败:', e);
+      console.warn('释放预设开发文件失败:', e);
     }
   }
 }
@@ -105,7 +117,10 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  ensureVisualizersDir();
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
