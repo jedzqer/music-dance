@@ -181,6 +181,15 @@ export function init() {
     els.homePage = document.getElementById('home-page');
     els.homeList = document.getElementById('home-list');
     els.homeListCount = document.getElementById('home-list-count');
+    els.miniPlayer = document.getElementById('mini-player');
+    els.miniCoverImg = document.getElementById('mini-cover-img');
+    els.miniTrackName = document.getElementById('mini-track-name');
+    els.miniPlaybackStatus = document.getElementById('mini-playback-status');
+    els.miniPlayBtn = document.getElementById('mini-play-btn');
+    els.miniPrevBtn = document.getElementById('mini-prev-btn');
+    els.miniNextBtn = document.getElementById('mini-next-btn');
+    els.miniProgress = document.getElementById('mini-progress');
+    els.miniOpenPlayer = document.getElementById('mini-open-player');
     els.fileInput = document.getElementById('file-input');
     els.playBtn = document.getElementById('play-btn');
     els.trackName = document.getElementById('track-name');
@@ -257,6 +266,11 @@ export function init() {
 
     els.fileInput.addEventListener('change', handleFileInput);
     els.playBtn.addEventListener('click', handlePlayPause);
+    els.miniPlayBtn?.addEventListener('click', handlePlayPause);
+    els.miniPrevBtn?.addEventListener('click', handleMiniPrevious);
+    els.miniNextBtn?.addEventListener('click', handleMiniNext);
+    els.miniOpenPlayer?.addEventListener('click', showPlayerPage);
+    els.miniProgress?.addEventListener('input', handleMiniProgressInput);
     els.volumeSlider.addEventListener('input', handleVolume);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('dragover', handleDragOver);
@@ -296,6 +310,15 @@ function setPlayIcon(playing) {
     const pauseIcon = els.playBtn.querySelector('.icon-pause');
     if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
     if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+    if (els.miniPlayer) {
+        els.miniPlayer.classList.toggle('is-playing', playing);
+        const miniPlayIcon = els.miniPlayBtn?.querySelector('.mini-icon-play');
+        const miniPauseIcon = els.miniPlayBtn?.querySelector('.mini-icon-pause');
+        if (miniPlayIcon) miniPlayIcon.style.display = playing ? 'none' : 'block';
+        if (miniPauseIcon) miniPauseIcon.style.display = playing ? 'block' : 'none';
+        if (els.miniPlaybackStatus) els.miniPlaybackStatus.textContent = playing ? '正在播放' : '已暂停';
+    }
+    updateMiniPlayer();
 }
 
 export function showError(msg) {
@@ -315,6 +338,38 @@ export function updateProgressBar() {
     els.progressThumb.style.left = `${pos}%`;
     els.progressThumb.style.bottom = '';
     updateLyricsHighlight(state.audioElement.currentTime);
+    if (els.miniProgress) {
+        els.miniProgress.value = String(Math.round(pos * 10));
+    }
+}
+
+function updateMiniPlayer() {
+    if (!els.miniPlayer) return;
+    const hasTrack = !!state.audioElement && !state.monitorMode;
+    els.miniPlayer.classList.toggle('has-track', hasTrack);
+    if (!hasTrack) return;
+    if (els.miniTrackName) {
+        els.miniTrackName.textContent = els.trackName?.textContent && els.trackName.textContent !== '\u2014'
+            ? els.trackName.textContent : '未选择音乐';
+    }
+    if (els.miniCoverImg) {
+        if (state.coverUrl) {
+            els.miniCoverImg.src = state.coverUrl;
+            els.miniCoverImg.classList.add('loaded');
+        } else {
+            els.miniCoverImg.removeAttribute('src');
+            els.miniCoverImg.classList.remove('loaded');
+        }
+    }
+    if (state.audioElement.duration && els.miniProgress && !state.isDraggingProgress) {
+        els.miniProgress.value = String(Math.round((state.audioElement.currentTime / state.audioElement.duration) * 1000));
+    }
+}
+
+function handleMiniProgressInput() {
+    if (!state.audioElement || !state.audioElement.duration || !els.miniProgress) return;
+    state.audioElement.currentTime = (Number(els.miniProgress.value) / 1000) * state.audioElement.duration;
+    updateProgressBar();
 }
 
 function getProgressFromEvent(e) {
@@ -374,6 +429,7 @@ async function loadCoverArt(file, filePath) {
                 state.coverUrl = cached;
                 els.coverImg.src = state.coverUrl;
                 els.coverArt.classList.add('has-cover');
+                updateMiniPlayer();
             }
             return null;
         }
@@ -385,6 +441,7 @@ async function loadCoverArt(file, filePath) {
     if (!state.coverUrl) return picture;
     els.coverImg.src = state.coverUrl;
     els.coverArt.classList.add('has-cover');
+    updateMiniPlayer();
     return picture;
 }
 
@@ -517,6 +574,7 @@ export async function cleanupAudio() {
     els.progressThumb.style.left = '0%';
     setPlayIcon(false);
     els.trackName.textContent = '\u2014';
+    updateMiniPlayer();
     resetParticles();
     resetBeatDetector();
     resetRenderer();
@@ -583,6 +641,7 @@ async function loadFile(file, filePath) {
         state.audioElement.addEventListener('timeupdate', handleTimeUpdate);
 
         els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
+        updateMiniPlayer();
 
         const trackMeta = {
             title: file.name.replace(/\.[^.]+$/, ''),
@@ -644,6 +703,7 @@ async function loadFile(file, filePath) {
         state.isPlaying = true;
         setPlayIcon(true);
         notifyPlaybackState();
+        updateMiniPlayer();
 
         els.homePage.classList.add('hidden');
         els.controls.classList.add('visible');
@@ -697,6 +757,18 @@ function handlePause() {
 function handlePlayPause() {
     if (state.isPlaying) handlePause();
     else handlePlay();
+}
+
+async function handleMiniPrevious() {
+    const keepHome = state.onHomePage;
+    await handlePrevious();
+    if (keepHome && state.audioElement) showHomePage();
+}
+
+async function handleMiniNext() {
+    const keepHome = state.onHomePage;
+    await handleNext();
+    if (keepHome && state.audioElement) showHomePage();
 }
 
 function handleVolume() {
@@ -1195,6 +1267,7 @@ function completeCrossfade(nextIdx, file, item) {
 
     state.playlist.setCurrentIndex(nextIdx);
     els.trackName.textContent = file.name.replace(/\.[^.]+$/, '');
+    updateMiniPlayer();
     state.parsedLyrics = null;
     state.currentLyricsIndex = -1;
     if (vizManager) vizManager.notifyLyricsUpdate({ currentLine: '', currentIndex: -1, lines: [] });
@@ -1693,12 +1766,23 @@ export async function showHomePage() {
     }
     state.onHomePage = true;
     vizManager?.resetNativeUI();
-    await cleanupAudio();
     els.homePage.classList.remove('hidden');
     els.controls.classList.remove('visible');
+    els.playlistPanel?.classList.remove('visible');
+    els.settingsPanel?.classList.remove('visible');
     homeSearchQuery = '';
     if (els.homeSearch) els.homeSearch.value = '';
     renderHomeList();
+    updateMiniPlayer();
+}
+
+export function showPlayerPage() {
+    if (state.monitorMode) return;
+    state.onHomePage = false;
+    els.homePage.classList.add('hidden');
+    vizManager?.applyVisualizerNativeUI();
+    if (state.audioElement) els.controls.classList.add('visible');
+    updateMiniPlayer();
 }
 
 async function handleMonitorMode() {
