@@ -24,6 +24,7 @@ export class VisualizerManager {
         this.currentLyrics = null;
         this.currentState = null;
         this._loadToken = null;
+        this.visualizerNativeUI = null;
 
         this.nativeUIState = {
             controls: true,
@@ -73,13 +74,24 @@ export class VisualizerManager {
         });
     }
 
+    applyVisualizerNativeUI() {
+        if (this.visualizerNativeUI) {
+            this.setNativeUI(this.visualizerNativeUI);
+        } else {
+            this.resetNativeUI();
+        }
+    }
+
     /**
      * Mounts and loads a visualizer by ID or raw HTML/URL
      */
     async loadVisualizer(vizItem) {
         if (!vizItem || !vizItem.id) vizItem = { id: 'radial' };
         this.currentVizId = vizItem.id;
-        this.resetNativeUI();
+        this.visualizerNativeUI = vizItem.nativeUI && typeof vizItem.nativeUI === 'object'
+            ? { ...vizItem.nativeUI }
+            : null;
+        this.applyVisualizerNativeUI();
 
         if (vizItem.id === 'radial') {
             // Built-in canvas mode
@@ -197,19 +209,14 @@ export class VisualizerManager {
             },
             ui: {
                 setNativeUI: (cfg) => {
-                    window.postMessage({
-                        type: 'MUSIC_DANCE_BRIDGE',
-                        action: 'SET_NATIVE_UI',
-                        payload: cfg
-                    }, '*');
+                    if (this.iframe?.contentWindow !== targetWindow) return;
+                    this.visualizerNativeUI = cfg && typeof cfg === 'object' ? { ...cfg } : {};
+                    this.applyVisualizerNativeUI();
                 }
             },
             _sendAction: (method, args = []) => {
-                window.postMessage({
-                    type: 'MUSIC_DANCE_BRIDGE',
-                    action: 'CONTROLS_ACTION',
-                    payload: { method, args }
-                }, '*');
+                if (this.iframe?.contentWindow !== targetWindow) return;
+                this.onControlsAction(method, args);
             }
         };
 

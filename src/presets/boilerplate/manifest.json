@@ -4,5 +4,11 @@
   "version": "1.0.0",
   "author": "MusicDance",
   "description": "展示 SDK 全量接口（多频段分析、节拍粒子、波形、歌词、封面色彩联动与反向控制）的全面开发示例",
-  "icon": "🚀"
+  "icon": "🚀",
+  "nativeUI": {
+    "controls": false,
+    "lyrics": false,
+    "progressBar": false,
+    "coverArt": false
+  }
 }

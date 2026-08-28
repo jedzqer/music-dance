@@ -57,11 +57,19 @@ my-visualizer/
   "version": "1.0.0",
   "author": "YourName",
   "description": "发光粒子与全屏歌词可视化",
-  "icon": "✨"
+  "icon": "✨",
+  "nativeUI": {
+    "controls": false,
+    "lyrics": false,
+    "progressBar": false,
+    "coverArt": false
+  }
 }
 ```
 
 > 💡 **提示**：预设 `id` 由文件夹名决定。`manifest.json` 中的字段会展示在播放器“可视化风格与管理”面板中。如果未提供 manifest，面板会自动采用文件夹名称和默认图标。
+>
+> 实现了自定义播放栏、歌词或封面的预设，可在 `nativeUI` 中将对应宿主组件设为 `false`。宿主会在预设加载前应用该声明，避免原生组件短暂闪现；运行时仍可通过 `sdk.ui.setNativeUI()` 修改接管范围。
 
 ---
 
@@ -171,6 +179,7 @@ window.$musicDance.ui.setNativeUI({
 
 1. **开发中调试**：直接编辑 `src/presets/<name>/index.html`，在播放器右上角点击“可视化”并在管理面板点击“刷新”即可热重载。按 `F12` 打开 DevTools 可定位 iframe 控制台日志。
 2. **桌面端安装到用户目录**：
-   - 将预设文件夹复制到用户数据目录下的 `visualizers/` 目录（Windows: `%APPDATA%\MusicDance\visualizers\`）；或
+   - 安装版和免安装版首次启动会自动将本指南、`API.md`、`AGENTS.md` 及示例模板释放到用户数据目录（Windows: `%APPDATA%\MusicDance\visualizers\`）。已有同名文件不会被覆盖；或
+   - 将预设文件夹复制到该 `visualizers/` 目录；或
    - 在播放器管理面板点击“导入”选择 `.zip` 或 `.html` 文件。
 3. **构建验证**：运行 `npm run build` 确保宿主构建正常。

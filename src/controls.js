@@ -29,6 +29,12 @@ const bundledPresetList = [
         icon: '🚀',
         isBuiltIn: true,
         htmlContent: boilerplatePresetHtml,
+        nativeUI: {
+            controls: false,
+            lyrics: false,
+            progressBar: false,
+            coverArt: false
+        },
         isLocked: false
     }
 ];
@@ -551,6 +557,7 @@ async function loadFile(file, filePath) {
     }
     await cleanupAudio();
     await new Promise(r => setTimeout(r, 50));
+    vizManager?.applyVisualizerNativeUI();
 
     try {
         ensureAudioContext();
