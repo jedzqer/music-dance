@@ -89,7 +89,7 @@
 
 源码开发时，预设开发文档与模板位于 [`src/presets/README.md`](src/presets/README.md)、[`src/presets/boilerplate/`](src/presets/boilerplate/) 和 [`src/presets/wave/`](src/presets/wave/)。安装版和免安装版会在首次打开时，将同一套文档与模板释放到 `%APPDATA%\MusicDance\visualizers\`；已有同名文件不会被覆盖。预设不应访问宿主 DOM、Electron API 或宿主源码，只通过 `window.$musicDance` SDK 通信。
 
-SDK 当前为 `1.0.0`（帧数据 `schemaVersion: 1`）。事件订阅函数返回取消订阅函数，SDK 提供 `version`、`apiVersion` 和 `capabilities`，帧数据除保留 `frequencyData`/`timeDomainData` 外，还提供归一化频谱、采样率与 bin 频率、RMS/峰值、五段频带能量和节拍信息。字段采用只增不改策略；破坏性协议变更会提升主版本并同步更新模板与文档。
+事件订阅函数返回取消订阅函数，SDK 提供 `version`、`apiVersion` 和 `capabilities`，帧数据除保留 `frequencyData`/`timeDomainData` 外，还提供归一化频谱、采样率与 bin 频率、RMS/峰值、五段频带能量和节拍信息。字段采用只增不改策略；破坏性协议变更会提升主版本并同步更新模板与文档。
 
 ### 键盘快捷键
 
