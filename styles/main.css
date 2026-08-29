@@ -51,11 +51,12 @@
             opacity: 0; visibility: hidden; pointer-events: none;
         }
         .home-sidebar {
-            width: 280px; padding: 60px 24px 24px;
+            width: 280px; padding: 60px 24px 72px;
             display: flex; flex-direction: column;
             background: rgba(10, 10, 25, 0.6);
             border-right: 1px solid rgba(255,255,255,0.06);
             overflow-y: auto;
+            position: relative;
         }
         .home-logo h1 {
             font-size: 1.8rem; font-weight: 300;
@@ -91,7 +92,12 @@
             color: rgba(255,255,255,0.25); text-align: center;
         }
         .home-sidebar-footer {
-            margin-top: auto; padding-top: 20px;
+            position: absolute;
+            left: 24px;
+            right: 24px;
+            bottom: 16px;
+            padding-top: 0;
+            margin: 0;
         }
         .home-settings-btn {
             display: flex; align-items: center; gap: 10px;
@@ -180,10 +186,11 @@
 
         /* ─── Home Mini Player ─── */
         .mini-player {
-            position: fixed; left: 24px; bottom: 24px; z-index: 32;
-            width: 232px; min-height: 250px;
+            position: fixed; left: 24px; bottom: 72px; z-index: 32;
+            width: 232px; min-height: 0;
             transform: translateY(18px); opacity: 0; pointer-events: none;
-            display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 14px;
+            display: grid; grid-template-columns: 56px minmax(0, 1fr); grid-template-rows: auto auto auto;
+            gap: 8px 10px; padding: 10px;
             background: rgba(10, 10, 25, 0.84); backdrop-filter: blur(24px);
             border: 1px solid rgba(255,255,255,0.1); border-radius: 16px;
             box-shadow: 0 18px 60px rgba(0,0,0,0.38), inset 0 0 22px rgba(79,172,254,0.04);
@@ -191,19 +198,14 @@
         }
         .mini-player.has-track { opacity: 1; transform: translateY(0); pointer-events: auto; }
 
-        /* 腾出空间防止遮挡主页左下角设置按钮 —— 高度由 JS 根据 mini-player 实际尺寸写入 */
-        .home-page:has(.mini-player.has-track) .home-sidebar {
-            padding-bottom: var(--mini-player-clearance, 300px);
-            transition: padding-bottom 0.35s;
-        }
-        .mini-player-cover { width: 100%; aspect-ratio: 1; border-radius: 11px; overflow: hidden; background: rgba(255,255,255,0.07); position: relative; display: grid; place-items: center; }
+        .mini-player-cover { width: 56px; height: 56px; grid-column: 1; grid-row: 1 / span 2; border-radius: 11px; overflow: hidden; background: rgba(255,255,255,0.07); position: relative; display: grid; place-items: center; }
         .mini-player-cover::after { content: '♪'; color: rgba(255,255,255,0.26); font-size: 1.2rem; position: absolute; }
         .mini-player-cover img { width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.2s; position: relative; z-index: 1; }
         .mini-player-cover img.loaded { opacity: 1; }
-        .mini-player-info { min-width: 0; }
+        .mini-player-info { min-width: 0; grid-column: 2; grid-row: 1; align-self: end; padding-right: 22px; }
         .mini-player-title { color: rgba(255,255,255,0.92); font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
         .mini-player-status { color: rgba(255,255,255,0.42); font-size: 0.72rem; margin-top: 4px; text-align: center; }
-        .mini-player-actions { display: flex; align-items: center; justify-content: center; gap: 6px; }
+        .mini-player-actions { display: flex; align-items: center; justify-content: flex-start; gap: 6px; grid-column: 2; grid-row: 2; }
         .mini-player-actions button, .mini-open-player { border: 0; background: transparent; color: rgba(255,255,255,0.75); cursor: pointer; display: grid; place-items: center; transition: color 0.2s, background 0.2s; }
         .mini-player-actions button { width: 34px; height: 34px; border-radius: 50%; }
         .mini-player-actions button:hover, .mini-open-player:hover { color: #fff; background: rgba(255,255,255,0.1); }
@@ -211,20 +213,24 @@
         .mini-player-actions .mini-play-btn { width: 40px; height: 40px; color: #fff; background: rgba(79,172,254,0.18); }
         .mini-player-actions .mini-play-btn:hover { background: rgba(79,172,254,0.32); }
         .mini-player-actions .mini-icon-pause { display: none; }
-        .mini-player-progress { min-width: 0; margin-top: 1px; }
+        .mini-player-progress { min-width: 0; margin-top: 1px; grid-column: 2; grid-row: 3; }
         #mini-progress { width: 100%; accent-color: #4facfe; cursor: pointer; }
-        .mini-open-player { gap: 5px; padding: 7px 9px; border-radius: 8px; color: rgba(255,255,255,0.6); font: inherit; font-size: 0.75rem; white-space: nowrap; }
+        .mini-open-player { grid-column: 1; grid-row: 3; width: 56px; justify-self: center; gap: 5px; padding: 4px; border-radius: 8px; color: rgba(255,255,255,0.6); font: inherit; font-size: 0.75rem; white-space: nowrap; }
         .mini-open-player svg { width: 16px; height: 16px; }
 
         @media (max-width: 700px) {
-            .mini-player { left: 12px; bottom: 12px; width: calc(100vw - 24px); min-height: 68px; transform: translateY(18px); display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; padding: 9px 10px; }
+            .home-sidebar { padding-bottom: 64px; }
+            .home-sidebar-footer { left: 24px; right: 24px; bottom: 12px; }
+            .mini-player { left: 12px; bottom: 68px; width: calc(100vw - 24px); min-height: 0; transform: translateY(18px); display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; grid-template-rows: auto auto auto; gap: 8px 10px; padding: 9px 10px; }
             .mini-player.has-track { transform: translateY(0); }
-            .mini-player-cover { width: 40px; height: 40px; aspect-ratio: auto; }
+            .mini-player-cover { width: 40px; height: 40px; aspect-ratio: auto; grid-column: 1; grid-row: 1; }
             .mini-player-info .mini-player-title, .mini-player-info .mini-player-status { text-align: left; }
+            .mini-player-actions { grid-column: 3; grid-row: 1; justify-content: center; }
             .mini-player-progress { grid-column: 1 / -1; grid-row: 2; margin-top: 0; }
-            .mini-open-player { padding: 7px; }
+            .mini-open-player { grid-column: 1; grid-row: 3; width: 40px; padding: 4px; }
             .mini-open-player span { display: none; }
         }
+
         .home-item.playing .home-item-name {
             color: #4facfe;
         }

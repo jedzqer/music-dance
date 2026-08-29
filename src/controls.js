@@ -316,7 +316,6 @@ export function init() {
     els.vizReloadBtn?.addEventListener('click', loadVisualizersList);
     els.monitorBtn?.addEventListener('click', handleMonitorMode);
     document.addEventListener('click', handleOutsideClick);
-    window.addEventListener('resize', updateMiniPlayerClearance);
 
     restoreVolume();
     restoreLastFolder();
@@ -361,21 +360,11 @@ export function updateProgressBar() {
     }
 }
 
-function updateMiniPlayerClearance() {
-    if (!els.homeSidebar || !els.miniPlayer) return;
-    if (!els.miniPlayer.classList.contains('has-track')) return;
-    const height = els.miniPlayer.getBoundingClientRect().height;
-    if (height > 0) {
-        els.homeSidebar.style.setProperty('--mini-player-clearance', `${height + 24}px`);
-    }
-}
-
 function updateMiniPlayer() {
     if (!els.miniPlayer) return;
     const hasTrack = !!state.audioElement && !state.monitorMode;
     els.miniPlayer.classList.toggle('has-track', hasTrack);
     if (!hasTrack) return;
-    requestAnimationFrame(updateMiniPlayerClearance);
     if (els.miniTrackName) {
         els.miniTrackName.textContent = els.trackName?.textContent && els.trackName.textContent !== '\u2014'
             ? els.trackName.textContent : '未选择音乐';
