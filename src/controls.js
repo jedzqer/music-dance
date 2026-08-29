@@ -1690,8 +1690,29 @@ async function handleCheckUpdate() {
         const latestVersion = manifest.version;
         if (latestVersion && compareVersions(latestVersion, CURRENT_VERSION) > 0) {
             els.settingsUpdateStatus.classList.add('has-update');
-            els.settingsUpdateStatus.innerHTML =
-                `发现新版本 v${latestVersion}，<a href="${manifest.url || REPO_URL}" target="_blank" rel="noopener noreferrer">点击前往下载</a>`;
+            els.settingsUpdateStatus.replaceChildren();
+
+            const updateTitle = document.createElement('div');
+            updateTitle.className = 'settings-update-title';
+            updateTitle.textContent = `发现新版本 v${latestVersion}`;
+            els.settingsUpdateStatus.appendChild(updateTitle);
+
+            const notes = Array.isArray(manifest.notes)
+                ? manifest.notes.join('\n')
+                : typeof manifest.notes === 'string' ? manifest.notes.trim() : '';
+            if (notes) {
+                const updateNotes = document.createElement('div');
+                updateNotes.className = 'settings-update-notes';
+                updateNotes.textContent = notes;
+                els.settingsUpdateStatus.appendChild(updateNotes);
+            }
+
+            const downloadLink = document.createElement('a');
+            downloadLink.href = typeof manifest.url === 'string' && manifest.url ? manifest.url : REPO_URL;
+            downloadLink.target = '_blank';
+            downloadLink.rel = 'noopener noreferrer';
+            downloadLink.textContent = '点击前往下载';
+            els.settingsUpdateStatus.appendChild(downloadLink);
         } else {
             els.settingsUpdateStatus.textContent = '当前已是最新版本';
         }

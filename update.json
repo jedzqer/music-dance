@@ -1,5 +1,5 @@
 {
-  "version": "2.0.0",
-  "url": "https://github.com/jedzqer/music-dance/releases/tag/v2.0.0",
-  "notes": "查看发布页面获取完整更新日志"
+  "version": "2.1.0",
+  "url": "https://github.com/jedzqer/music-dance/releases/tag/v2.1.0",
+  "notes": "新增自定义 HTML 可视化预设与 SDK 沙箱，支持预设接管原生 UI 和自定义设置按钮\n新增可视化预设文档与完整示例，并在 Electron 打包中内置预设文档\n新增主页迷你播放器、播放控制栏和软件设置入口，拆分软件设置与播放设置面板\n修复 Electron 内置预设加载问题，并优化主页按钮布局与交互"
 }

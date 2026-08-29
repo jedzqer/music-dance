@@ -604,6 +604,12 @@
             font-size: 0.8rem; color: rgba(255,255,255,0.45); min-height: 1.2em;
         }
         .settings-update-status.has-update { color: #fa709a; }
+        .settings-update-title { line-height: 1.4; }
+        .settings-update-notes {
+            margin-top: 6px; color: rgba(255,255,255,0.68); line-height: 1.5;
+            white-space: pre-line;
+        }
+        .settings-update-status > a { display: inline-block; margin-top: 6px; }
         .settings-update-status a { color: #4facfe; text-decoration: none; }
         .settings-update-status a:hover { text-decoration: underline; }
 
