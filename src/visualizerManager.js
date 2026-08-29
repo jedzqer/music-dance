@@ -1,9 +1,10 @@
 /**
  * Visualizer SDK Host bridge and runtime manager.
- * The SDK contract is additive-only within major version 1.
+ * The SDK contract is additive-only within major version 2.
  */
 
-export const MUSIC_DANCE_SDK_VERSION = '1.0.0';
+export const MUSIC_DANCE_SDK_VERSION = '2.0.0';
+export const MUSIC_DANCE_API_VERSION = 2;
 export const MUSIC_DANCE_FRAME_SCHEMA = 1;
 
 export class VisualizerManager {
@@ -11,6 +12,7 @@ export class VisualizerManager {
         this.container = options.container;
         this.onNativeUIChange = options.onNativeUIChange || (() => {});
         this.onControlsAction = options.onControlsAction || (() => {});
+        this.onNativeUIError = options.onNativeUIError || (() => {});
         
         this.iframe = null;
         this.currentVizId = 'radial';
@@ -25,6 +27,8 @@ export class VisualizerManager {
         this.currentState = null;
         this._loadToken = null;
         this.visualizerNativeUI = null;
+        this.settingsButtonRegistered = false;
+        this._loadingVisualizer = false;
 
         this.nativeUIState = {
             controls: true,
@@ -51,11 +55,27 @@ export class VisualizerManager {
                         this.onControlsAction(payload.method, payload.args);
                     }
                     break;
+                case 'REGISTER_SETTINGS_BUTTON':
+                    this.registerSettingsButton();
+                    break;
             }
         });
     }
 
+    registerSettingsButton() {
+        this.settingsButtonRegistered = true;
+        if (this.visualizerNativeUI?.controls === false) {
+            this.applyVisualizerNativeUI();
+        }
+    }
+
     setNativeUI(uiConfig = {}) {
+        if (uiConfig.controls === false && !this.settingsButtonRegistered) {
+            if (!this._loadingVisualizer) {
+                this.onNativeUIError('自定义播放栏必须提供设置按钮：请先调用 sdk.ui.registerSettingsButton()');
+            }
+            uiConfig = { ...uiConfig, controls: true };
+        }
         this.nativeUIState = {
             controls: uiConfig.controls !== false,
             lyrics: uiConfig.lyrics !== false,
@@ -88,10 +108,13 @@ export class VisualizerManager {
     async loadVisualizer(vizItem) {
         if (!vizItem || !vizItem.id) vizItem = { id: 'radial' };
         this.currentVizId = vizItem.id;
+        this.settingsButtonRegistered = false;
         this.visualizerNativeUI = vizItem.nativeUI && typeof vizItem.nativeUI === 'object'
             ? { ...vizItem.nativeUI }
             : null;
+        this._loadingVisualizer = true;
         this.applyVisualizerNativeUI();
+        this._loadingVisualizer = false;
 
         if (vizItem.id === 'radial') {
             // Built-in canvas mode
@@ -131,6 +154,9 @@ export class VisualizerManager {
                     // Existing preset pages may register after the SDK is available.
                     const FrameEvent = this.iframe.contentWindow.Event;
                     this.iframe.contentWindow.dispatchEvent(new FrameEvent('musicdance-ready'));
+                    if (this.visualizerNativeUI?.controls === false && !this.settingsButtonRegistered) {
+                        this.onNativeUIError('该预设声明接管播放栏，但未注册设置按钮；已保留原生播放栏');
+                    }
                     // Sync initial state
                     if (this.currentTrack) {
                         this.notifyTrackChange(this.currentTrack);
@@ -187,12 +213,13 @@ export class VisualizerManager {
             stateChange: true,
             controls: true,
             nativeUI: true,
+            settingsButton: true,
             frameSchema: MUSIC_DANCE_FRAME_SCHEMA
         });
 
         targetWindow.$musicDance = {
             version: MUSIC_DANCE_SDK_VERSION,
-            apiVersion: 1,
+            apiVersion: MUSIC_DANCE_API_VERSION,
             capabilities,
             onFrame: (cb) => subscribe(frameHandlers, cb),
             onTrackChange: (cb) => subscribe(trackHandlers, cb, targetWindow.$musicDance._lastTrack),
@@ -208,6 +235,14 @@ export class VisualizerManager {
                 setVolume: (vol) => targetWindow.$musicDance._sendAction('setVolume', [vol])
             },
             ui: {
+                registerSettingsButton: () => {
+                    if (this.iframe?.contentWindow !== targetWindow) return;
+                    this.registerSettingsButton();
+                },
+                openSettings: () => {
+                    if (this.iframe?.contentWindow !== targetWindow) return;
+                    this.onControlsAction('openSettings', []);
+                },
                 setNativeUI: (cfg) => {
                     if (this.iframe?.contentWindow !== targetWindow) return;
                     this.visualizerNativeUI = cfg && typeof cfg === 'object' ? { ...cfg } : {};

@@ -17,7 +17,7 @@
 1. **预设是独立网页**：每个预设是运行在沙箱 iframe（`sandbox="allow-scripts allow-same-origin"`）中的自包含 HTML 文件。不得 import/引用宿主源码模块（`renderer.js`、`beatdetector.js`、`controls.js` 等），不得访问父页 DOM 或 `window.electronAPI`。
 2. **数据唯一入口是 `window.$musicDance` SDK**，宿主在 iframe 加载后注入。SDK 完整参考见同目录 `API.md` 及 `README.md`。脚本开头应判断 `if (window.$musicDance)` 或监听 `musicdance-ready` 事件。
 3. **渲染驱动与数据生命周期**：在 `onFrame` 回调中读取每帧数据；`frequencyData` 与 `frequency.normalized` 为宿主复用的 TypedArray，不可跨帧异步修改。
-4. **原生 UI 默认可见**：如需全屏接管才调用 `ui.setNativeUI({...})`；未列出的项保持可见。预设不应假定 UI 已被隐藏。
+4. **原生 UI 默认可见**：如需全屏接管才调用 `ui.setNativeUI({...})`；未列出的项保持可见。隐藏宿主播放栏前必须调用 `ui.registerSettingsButton()`，并提供调用 `ui.openSettings()` 的自定义设置按钮。
 5. **空值与待机兜底**：`frequencyData` 可能为空/全 0、`coverPalette`/`coverUrl` 可能为 `null`、歌词可能不存在。预设必须在无音乐或静止状态下也能优雅呈现，严禁未作空值判断导致脚本抛错崩溃。
 
 ## 文件规范

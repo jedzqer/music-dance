@@ -42,8 +42,8 @@ if (window.$musicDance) {
 
 | 属性名 | 类型 | 说明 |
 | :--- | :--- | :--- |
-| `version` | `string` | SDK 当前版本号（当前固定为 `"1.0.0"`） |
-| `apiVersion` | `number` | API 架构版本（当前为 `1`） |
+| `version` | `string` | SDK 当前版本号（当前固定为 `"2.0.0"`） |
+| `apiVersion` | `number` | API 架构版本（当前为 `2`） |
 | `capabilities` | `Object` | 宿主支持的能力特性标识集合（只读冻结对象） |
 | `controls` | `Object` | 反向播放控制接口集合（见后文第 4 节） |
 | `ui` | `Object` | 宿主原生 UI 显示/接管控制（见后文第 5 节） |
@@ -62,6 +62,7 @@ if (window.$musicDance) {
     stateChange: true,   // 是否支持播放状态通知
     controls: true,      // 是否支持反向控制（播放/暂停/切歌/跳转/调音量）
     nativeUI: true,      // 是否支持接管隐藏原生 UI 组件
+    settingsButton: true,// 是否支持注册自定义设置按钮
     frameSchema: 1       // 音频帧 Schema 版本号
 }
 ```
@@ -248,6 +249,8 @@ MusicDance 允许预设按需隐藏宿主自带的 DOM 控件，以实现极致�
 ### `setNativeUI(config)`
 
 ```javascript
+// 只有已经提供自定义设置按钮时才能隐藏宿主播放栏
+window.$musicDance.ui.registerSettingsButton();
 window.$musicDance.ui.setNativeUI({
     controls: false,     // 是否显示底部播放控制栏（默认 true，设为 false 隐藏）
     lyrics: false,       // 是否显示右侧/浮动歌词面板（默认 true，设为 false 隐藏）
@@ -256,10 +259,24 @@ window.$musicDance.ui.setNativeUI({
 });
 ```
 
+### 自定义设置按钮（隐藏播放栏前置条件）
+
+当预设接管播放控制栏并将 `controls` 设为 `false` 时，必须先注册自定义设置按钮：
+
+```javascript
+window.$musicDance.ui.registerSettingsButton();
+mySettingsButton.addEventListener('click', () => {
+    window.$musicDance.ui.openSettings();
+});
+```
+
+未注册时隐藏播放栏的请求会被拒绝，宿主会继续显示原生播放栏并提示错误。该要求适用于 manifest 中的 `nativeUI.controls: false` 以及运行时调用。
+
 #### 规则与安全保障：
 1. **默认全显**：所有未显式传入 `false` 的项均默认为 `true`（保持可见）。
-2. **自动恢复**：当用户切换到其他预设、或按 `Esc` 返回播放器首页列表时，宿主会自动重置所有原生 UI 为全显状态。
-3. **Esc 保底返回**：即便预设隐藏了全部原生 UI，用户按下键盘 `Esc` 依然由宿主全局监听并返回主页，预设无需担心造成界面死锁。
+2. **设置按钮要求**：隐藏播放栏前必须注册并实现自定义设置按钮（见上）。
+3. **自动恢复**：当用户切换到其他预设、或按 `Esc` 返回播放器首页列表时，宿主会自动重置所有原生 UI 为全显状态。
+4. **Esc 保底返回**：即便预设隐藏了全部原生 UI，用户按下键盘 `Esc` 依然由宿主全局监听并返回主页，预设无需担心造成界面死锁。
 
 ---
 

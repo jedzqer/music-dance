@@ -69,7 +69,7 @@ my-visualizer/
 
 > 💡 **提示**：预设 `id` 由文件夹名决定。`manifest.json` 中的字段会展示在播放器“可视化风格与管理”面板中。如果未提供 manifest，面板会自动采用文件夹名称和默认图标。
 >
-> 实现了自定义播放栏、歌词或封面的预设，可在 `nativeUI` 中将对应宿主组件设为 `false`。宿主会在预设加载前应用该声明，避免原生组件短暂闪现；运行时仍可通过 `sdk.ui.setNativeUI()` 修改接管范围。
+> 实现了自定义播放栏的预设，必须在调用 `sdk.ui.setNativeUI({ controls: false })` 前调用 `sdk.ui.registerSettingsButton()`，并让自定义设置按钮调用 `sdk.ui.openSettings()`。未完成注册时，宿主会保留原生播放栏并提示错误。歌词、进度条或封面仍可按需设为 `false`。
 
 ---
 
@@ -151,12 +151,15 @@ window.$musicDance.controls.setVolume(0.8); // 调节音量 (0~1)
 如果想实现纯净无干扰的全屏体验，可调用原生 UI 控制接口隐藏宿主默认部件（切换预设或按 `Esc` 会自动恢复）：
 
 ```javascript
+window.$musicDance.ui.registerSettingsButton();
 window.$musicDance.ui.setNativeUI({
   controls: false,     // 隐藏底部控制栏
   lyrics: false,       // 隐藏右侧歌词面板
   progressBar: false,  // 隐藏底部进度条
   coverArt: false      // 隐藏左上角专辑封面部件
 });
+
+// 自定义设置按钮应调用：window.$musicDance.ui.openSettings()
 ```
 
 ---

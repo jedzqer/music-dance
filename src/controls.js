@@ -258,6 +258,7 @@ export function init() {
                 els.coverArt.style.display = uiState.coverArt ? '' : 'none';
             }
         },
+        onNativeUIError: (message) => showError(message),
         onControlsAction: (method, args) => {
             if (method === 'play') handlePlay();
             else if (method === 'pause') handlePause();
@@ -273,7 +274,7 @@ export function init() {
                 const vol = Math.max(0, Math.min(100, args[0] * 100));
                 els.volumeSlider.value = vol;
                 handleVolume();
-            }
+            } else if (method === 'openSettings') toggleSettingsPanel();
         }
     });
 

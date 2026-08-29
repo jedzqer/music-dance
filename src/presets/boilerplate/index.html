@@ -225,6 +225,7 @@
             <span class="time-display" id="time-display">00:00 / 00:00</span>
             <button class="ctrl-btn" id="btn-vol-down" title="音量 -10%">🔉</button>
             <button class="ctrl-btn" id="btn-vol-up" title="音量 +10%">🔊</button>
+            <button class="ctrl-btn" id="btn-settings" title="设置">⚙</button>
         </div>
         <div class="tips">提示：点击画布或按空格键可切换播放/暂停，本模板演示了 SDK 的全量特性与接口</div>
     </div>
@@ -243,7 +244,7 @@
          * 3. onLyricsUpdate: 当前歌词行 (currentLine)、当前行索引 (currentIndex)、完整歌词列表 (lines)
          * 4. onStateChange: 播放/暂停状态 (isPlaying)、音量大小 (volume)
          * 5. controls: 反向控制 play() / pause() / togglePlay() / next() / prev() / seek() / setVolume()
-         * 6. ui: 原生 UI 接管 setNativeUI()
+         * 6. ui: 原生 UI 接管 setNativeUI() 与自定义设置按钮注册
          */
 
         const canvas = document.getElementById('canvas');
@@ -260,6 +261,7 @@
         const btnNext = document.getElementById('btn-next');
         const btnVolDown = document.getElementById('btn-vol-down');
         const btnVolUp = document.getElementById('btn-vol-up');
+        const btnSettings = document.getElementById('btn-settings');
 
         const bBass = document.getElementById('b-bass');
         const bMid = document.getElementById('b-mid');
@@ -498,6 +500,7 @@
             btnNext.addEventListener('click', () => sdk.controls.next());
             btnVolDown.addEventListener('click', () => sdk.controls.setVolume(Math.max(0, currentVolume - 0.1)));
             btnVolUp.addEventListener('click', () => sdk.controls.setVolume(Math.min(1, currentVolume + 0.1)));
+            btnSettings.addEventListener('click', () => sdk.ui.openSettings());
 
             // 画布交互与快捷键支持
             canvas.addEventListener('click', () => sdk.controls.togglePlay());
@@ -511,8 +514,9 @@
             // ==========================================
             // 6. 原生 UI 控制：本模板由自定义界面完全接管
             // ==========================================
-            // 自定义控制栏、歌词和封面已在本预设中实现，因此隐藏宿主原生组件。
+            // 自定义控制栏、设置按钮、歌词和封面已在本预设中实现，因此隐藏宿主原生组件。
             // 切换到其他预设或按 Esc 返回主页时，宿主会自动恢复这些组件。
+            sdk.ui.registerSettingsButton();
             sdk.ui.setNativeUI({
                 controls: false,    // 宿主底部控制栏
                 lyrics: false,      // 宿主右侧歌词面板
